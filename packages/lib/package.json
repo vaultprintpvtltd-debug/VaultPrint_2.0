@@ -1,0 +1,14 @@
+{
+  "name": "@vaultprint/lib",
+  "version": "1.0.0",
+  "main": "./index.ts",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "razorpay": "^2.9.6",
+    "@aws-sdk/client-ses": "^3.1062.0",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0"
+  }
+}
