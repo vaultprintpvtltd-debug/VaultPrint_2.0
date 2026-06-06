@@ -36,9 +36,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // ─── 2. ADMIN ROUTE PROTECTION ───────────────────────────────────────
-  // Protect all /admin/* routes EXCEPT /admin/login (which is the login
-  // page itself). Requires a valid Supabase Auth session cookie.
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+  // Protect all /admin/* AND /api/admin/* routes EXCEPT /admin/login.
+  // Requires a valid Supabase Auth session cookie.
+  const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
+  const isLoginRoute = pathname.startsWith('/admin/login')
+  if (isAdminRoute && !isLoginRoute) {
     const response = NextResponse.next()
 
     // Create a Supabase client that reads/writes cookies via the
@@ -167,6 +169,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/admin/:path*',
+    '/api/admin/:path*',
     '/api/kiosk/:path*',
     // Also match root for subdomain rewrite (admin. hitting /)
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',

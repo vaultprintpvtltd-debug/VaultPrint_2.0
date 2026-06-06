@@ -2,6 +2,11 @@
   "name": "@vaultprint/db",
   "version": "1.0.0",
   "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./server": "./server.ts",
+    "./types": "./types.ts"
+  },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0"
