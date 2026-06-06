@@ -287,6 +287,20 @@ This project uses the **Supabase MCP** for database operations. When working on 
    - **Reason:** `response.headers.set()` only sets **response** headers sent back to the browser. Route handlers read `request.headers`, which won't contain those values.
    - **Solution:** Clone the incoming request headers, add your custom values, and pass them via the `request` option of `NextResponse.next()`.
 
+4. **Next.js Static Prerendering with `useSearchParams`:**
+   - **Rule:** If you use `useSearchParams()` in a Client Component, you MUST wrap it in a `<Suspense>` boundary.
+   - **Reason:** During the production build (`next build`), Next.js attempts to statically prerender pages. Dynamic hooks like `useSearchParams` cause a "CSR bailout" exception because the URL parameters are not known at build time.
+   - **Solution:** Wrap the component rendering the hook with `<Suspense fallback={...}>`.
+
+5. **Supabase-JS Strict Type Inference (Returns `never`):**
+   - **Rule:** If you see `Property 'X' does not exist on type 'never'` during a Supabase query, it usually means your TypeScript schema does not exactly match the query (e.g., missing Postgres defaults handling on `.insert()`).
+   - **Reason:** `supabase-js`'s generic type inference is extremely rigid. If the expected `Insert` type doesn't mark default DB columns as optional, calling `.insert()` without them evaluates to `never`, breaking all subsequent chained methods (`select()`, `single()`).
+   - **Solution:** Rather than fighting deep generic circular constraints in `types.ts`, explicitly cast the client for that specific query (`await (supabase as any).from(...)`).
+
+6. **Vercel Monorepo Build Commands (pnpm v10+):**
+   - **Rule:** In `vercel.json`, use `pnpm --filter @vaultprint/[app] run build`.
+   - **Reason:** `pnpm build --filter ...` is invalid syntax because `build` is not a native top-level pnpm command (unlike npm). Using invalid syntax will cause the Vercel deployment to fail with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`.
+
 ---
 
 ## Key Business Rules

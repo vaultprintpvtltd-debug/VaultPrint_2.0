@@ -44,6 +44,9 @@ This document tracks the actual implementation progress against the PRD and Engi
 | Upload presign returned RLS violation | `@supabase/ssr` client read browser cookies, overriding service role key with user's anon session | Switched to pure `createClient` with `persistSession: false` |
 | Middleware `x-kiosk-id` not reaching route handlers | `response.headers.set()` sets response headers, not request headers | Use `NextResponse.next({ request: { headers } })` pattern |
 | Middleware didn't protect `/api/admin/*` | Only checked `pathname.startsWith('/admin')` | Added `pathname.startsWith('/api/admin')` check + matcher entry |
+| Kiosk build failed (`prerender-error`) | `useSearchParams` used without `<Suspense>` boundary | Wrapped `LoginForm` in `<Suspense>` in `/admin/login/page.tsx` |
+| Mobile build failed (`never[]` TS error) | `supabase-js` inferred `never` on `.insert` because Postgres default columns weren't optional | Explicitly cast `(supabase as any)` in `app/(user)/start/page.tsx` |
+| Vercel build command failed (`pnpm build`) | `build` is not a top-level command in pnpm (unlike npm) | Changed `vercel.json` to use `pnpm --filter [app] run build` |
 
 ---
 
