@@ -1,13 +1,37 @@
 import Link from 'next/link'
+import { createServerClient } from '@vaultprint/db/server'
 
 // ---------------------------------------------------------------------------
-// /admin — Fleet Dashboard (placeholder)
-//
-// Protected by middleware: requires valid Supabase Auth session.
-// Will be expanded in Phase 4 with live kiosk grid, jobs today, revenue.
+// /admin — Fleet Dashboard
 // ---------------------------------------------------------------------------
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const supabase = await createServerClient()
+
+  // Fetch Kiosks
+  const { data: kiosks } = await (supabase as any)
+    .from('kiosks')
+    .select('id, name, location, last_heartbeat, status, os_platform')
+    .order('created_at', { ascending: false })
+
+  // Stats
+  const totalKiosks = kiosks?.length || 0
+  const onlineKiosks = (kiosks as any[])?.filter((k: any) => k.status === 'idle' || k.status === 'printing').length || 0
+
+  // Today's jobs
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  
+  const { data: jobsToday } = await (supabase as any)
+    .from('print_jobs')
+    .select('id, total_price, status')
+    .gte('created_at', startOfDay.toISOString())
+
+  const totalJobsToday = jobsToday?.length || 0
+  const revenueToday = (jobsToday as any[])
+    ?.filter((j: any) => ['paid', 'queued', 'printing', 'completed'].includes(j.status))
+    .reduce((sum: number, j: any) => sum + (j.total_price || 0), 0) || 0
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
@@ -22,18 +46,10 @@ export default function AdminDashboardPage() {
             <h1 className="text-lg font-bold">VaultPrint Admin</h1>
           </div>
           <nav className="flex items-center gap-6 text-sm">
-            <Link href="/admin" className="font-medium text-emerald-500">
-              Dashboard
-            </Link>
-            <Link href="/admin/kiosks" className="text-zinc-400 transition hover:text-zinc-100">
-              Kiosks
-            </Link>
-            <Link href="/admin/jobs" className="text-zinc-400 transition hover:text-zinc-100">
-              Jobs
-            </Link>
-            <Link href="/admin/pricing" className="text-zinc-400 transition hover:text-zinc-100">
-              Pricing
-            </Link>
+            <Link href="/admin" className="font-medium text-emerald-500">Dashboard</Link>
+            <Link href="/admin/kiosks" className="text-zinc-400 transition hover:text-zinc-100">Kiosks</Link>
+            <Link href="/admin/jobs" className="text-zinc-400 transition hover:text-zinc-100">Jobs</Link>
+            <Link href="/admin/pricing" className="text-zinc-400 transition hover:text-zinc-100">Pricing</Link>
           </nav>
         </div>
       </header>
@@ -41,31 +57,76 @@ export default function AdminDashboardPage() {
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-6 py-12">
         <h2 className="mb-2 text-3xl font-bold tracking-tight">Fleet Dashboard</h2>
-        <p className="mb-8 text-zinc-500">
-          Overview of all kiosks, jobs, and revenue across your fleet.
-        </p>
+        <p className="mb-8 text-zinc-500">Overview of all kiosks, jobs, and revenue across your fleet.</p>
 
-        {/* Placeholder Stats Grid */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Kiosks" value="—" />
-          <StatCard label="Online Now" value="—" />
-          <StatCard label="Jobs Today" value="—" />
-          <StatCard label="Revenue Today" value="₹ —" />
+          <StatCard label="Total Kiosks" value={totalKiosks.toString()} />
+          <StatCard label="Online Now" value={onlineKiosks.toString()} />
+          <StatCard label="Jobs Today" value={totalJobsToday.toString()} />
+          <StatCard label="Revenue Today" value={`₹ ${revenueToday.toFixed(2)}`} />
         </div>
 
-        <div className="mt-12 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
-          <p className="text-zinc-500">
-            Fleet status grid and live metrics will appear here once kiosks are added.
-          </p>
-          <Link
-            href="/admin/kiosks"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Your First Kiosk
-          </Link>
+        {/* Fleet Status */}
+        <div className="mt-12">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-bold">Live Fleet Status</h3>
+            <Link
+              href="/admin/kiosks"
+              className="text-sm font-medium text-emerald-500 hover:text-emerald-400"
+            >
+              Manage Kiosks →
+            </Link>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-800 bg-zinc-950/50">
+                <tr>
+                  <th className="px-6 py-4 font-medium text-zinc-400">Name & Location</th>
+                  <th className="px-6 py-4 font-medium text-zinc-400">Status</th>
+                  <th className="px-6 py-4 font-medium text-zinc-400">Platform</th>
+                  <th className="px-6 py-4 font-medium text-zinc-400">Last Seen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {kiosks?.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-zinc-500">
+                      No kiosks added yet.
+                    </td>
+                  </tr>
+                ) : (
+                  (kiosks as any[]).map((kiosk: any) => {
+                    const lastSeen = kiosk.last_heartbeat ? new Date(kiosk.last_heartbeat) : null
+                    const isOffline = lastSeen ? (new Date().getTime() - lastSeen.getTime() > 60000) : true
+                    
+                    return (
+                      <tr key={kiosk.id} className="transition hover:bg-zinc-800/50">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-zinc-200">{kiosk.name}</div>
+                          <div className="text-xs text-zinc-500">{kiosk.location || 'No location set'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${
+                            isOffline ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                            {isOffline ? 'Offline' : kiosk.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-zinc-400">
+                          {kiosk.os_platform || '—'}
+                        </td>
+                        <td className="px-6 py-4 text-zinc-400">
+                          {lastSeen ? lastSeen.toLocaleTimeString() : 'Never'}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>

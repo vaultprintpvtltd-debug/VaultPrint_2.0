@@ -50,9 +50,24 @@ This document tracks the actual implementation progress against the PRD and Engi
 
 ---
 
-## 6. Next Steps
-1. **Mobile App — Print Customization & Payment:** `/customize/[sessionId]` — B&W/Color, Duplex, Copies, page range → price calculation → Razorpay integration.
-2. **Kiosk App — OTP Screen:** `/kiosk/[kioskId]/enter-otp` — numpad UI + `POST /api/kiosk/[id]/otp` backend validation.
-3. **Print Agent — Queue Polling & Execution:** Poll `GET /api/kiosk/[id]/queue` every 3s, download PDF via signed URL, execute `SumatraPDF` (Windows) or `lp` (macOS/Linux), report completion/failure.
-4. **Admin Dashboard:** Fleet overview, job history, pricing management, refund capabilities.
-5. **RLS Policies:** Enable Row Level Security on all 4 tables before production deployment.
+## 5. Mobile App — Customization & Payment ✅
+- [x] **Settings API:** `PATCH /api/jobs/[id]/settings` — validates B&W/Color, Duplex, Copies, page range, looks up `pricing_config`, calculates price.
+- [x] **Customization UI:** `/customize/[sessionId]` — 6 settings with debounced save and live price.
+- [x] **Razorpay Integration:** `/payment/[sessionId]`, `POST /api/jobs/[id]/payment/order`, `POST /api/jobs/[id]/payment/verify`, `POST /api/webhooks/razorpay`.
+- [x] **OTP Flow:** Verifies HMAC signature, generates 6-digit OTP, hashes it, sets status to `queued`. Shows OTP to user.
+
+## 6. Kiosk App — OTP Screen ✅
+- [x] **Numpad UI:** `/kiosk/[kioskId]/enter-otp` — numpad UI, shake animation on wrong, auto-submit.
+- [x] **OTP Verification:** `POST /api/kiosk/[id]/otp` — verifies hash, increments attempts, expires on 3 failures, transitions to success.
+- [x] **Success Screen:** `/kiosk/[kioskId]/success` — 5-second auto-return to idle.
+
+## 7. Print Agent — Execution ✅
+- [x] **Queue Polling:** `GET /api/kiosk/[id]/queue` — polled every 3s. Claims job, transitions to `printing`, returns signed URL.
+- [x] **PDF Download & Print:** Downloads PDF to temp file, executes `SumatraPDF` (Windows) or `lp` (macOS/Linux).
+- [x] **Job Completion:** `PATCH /api/kiosk/[id]/job/[jobId]` — reports `completed` or `failed`.
+
+---
+
+## 8. Next Steps
+1. **Admin Dashboard:** Fleet overview, job history, pricing management, refund capabilities.
+2. **RLS Policies:** Enable Row Level Security on all 4 tables before production deployment.
