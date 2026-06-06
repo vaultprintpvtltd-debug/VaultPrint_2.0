@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@vaultprint/db'
@@ -14,7 +15,7 @@ import { createBrowserClient } from '@vaultprint/db'
 // The middleware explicitly excludes /admin/login from the auth check.
 // ---------------------------------------------------------------------------
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/admin'
@@ -42,8 +43,7 @@ export default function AdminLoginPage() {
         return
       }
 
-      // Successful login — redirect to the admin dashboard (or wherever
-      // the middleware originally wanted to send the user).
+      // Successful login — redirect to the admin dashboard
       router.push(redirectTo)
       router.refresh()
     } catch {
@@ -52,6 +52,66 @@ export default function AdminLoginPage() {
     }
   }
 
+  return (
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      <div className="mb-4">
+        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-zinc-300">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+          autoFocus
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+          placeholder="admin@vaultprintpvtltd.online"
+        />
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-300">
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+          placeholder="••••••••"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {loading ? (
+          <>
+            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            Signing in…
+          </>
+        ) : (
+          'Sign In'
+        )}
+      </button>
+    </form>
+  )
+}
+
+export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
       <div className="w-full max-w-sm">
@@ -66,62 +126,10 @@ export default function AdminLoginPage() {
           <p className="mt-1 text-sm text-zinc-500">Sign in to manage your kiosk fleet</p>
         </div>
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div className="mb-4">
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              autoFocus
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-              placeholder="admin@vaultprintpvtltd.online"
-            />
-          </div>
-
-          <div className="mb-6">
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Signing in…
-              </>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
+        {/* Login Form with Suspense to fix static prerendering error */}
+        <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-zinc-900" />}>
+          <LoginForm />
+        </Suspense>
 
         <p className="mt-6 text-center text-xs text-zinc-600">
           VaultPrint Fleet Management Console

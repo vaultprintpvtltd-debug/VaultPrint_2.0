@@ -45,7 +45,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   // 1. Validate kiosk exists and is not offline
   const { data: kiosk, error: kioskError } = await supabase
     .from('kiosks')
-    .select('id, name, status')
+    .select()
     .eq('id', kioskId)
     .single()
 
@@ -61,7 +61,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   const { data: job, error: jobError } = await supabase
     .from('print_jobs')
     .insert({ kiosk_id: kiosk.id, status: 'created' })
-    .select('id, session_id')
+    .select()
     .single()
 
   if (jobError || !job) {

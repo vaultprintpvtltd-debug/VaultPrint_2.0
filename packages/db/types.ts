@@ -22,7 +22,7 @@ export interface Database {
           settings: Json | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['kiosks']['Row'], 'created_at'>
+        Insert: Partial<Database['public']['Tables']['kiosks']['Row']>
         Update: Partial<Database['public']['Tables']['kiosks']['Row']>
       }
       print_jobs: {
@@ -53,7 +53,7 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['print_jobs']['Row'], 'created_at' | 'updated_at'>
+        Insert: Partial<Database['public']['Tables']['print_jobs']['Row']>
         Update: Partial<Database['public']['Tables']['print_jobs']['Row']>
       }
     }
