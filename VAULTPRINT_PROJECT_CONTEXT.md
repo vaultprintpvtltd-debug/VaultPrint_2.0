@@ -257,6 +257,18 @@ This project uses the **Supabase MCP** for database operations. When working on 
 - **Storage:** private bucket `print-files/`. Files live at `print-files/{kiosk_id}/{job_id}.pdf`. Auto-deleted 24h after completion via storage policy.
 - **Migrations:** all SQL lives in `supabase/migrations/`. Run `supabase db push` from the repo root.
 
+## Gotchas & Technical Guidelines
+
+1. **Next.js `fetch` Deadlocks:** 
+   - **Rule:** *Never* call your own API routes (e.g. `fetch('/api/...')`) from a Server Component.
+   - **Reason:** In Next.js development mode, the local server handles requests synchronously. Calling an internal API route from a Server Component blocks the thread, causing the request to hang indefinitely.
+   - **Solution:** Query the database directly inside the Server Component instead.
+
+2. **Supabase SSR vs. Service Role:**
+   - **Rule:** When writing background API routes that *must* bypass RLS (like generating presigned storage URLs or webhook handlers), **do not** use `createServerClient` from `@supabase/ssr`.
+   - **Reason:** `createServerClient` automatically reads browser cookies. If a user happens to have an active session cookie (e.g., from logging into the Admin panel), the SSR client will silently override your `SUPABASE_SERVICE_KEY` with the user's `anon` or `authenticated` access token, leading to unexpected RLS violation errors.
+   - **Solution:** Use a pure `createClient` from `@supabase/supabase-js` with `auth: { persistSession: false, autoRefreshToken: false }` to ensure it acts as a true backend service role.
+
 ---
 
 ## Key Business Rules
@@ -320,6 +332,12 @@ Mobile App                    Supabase                    Kiosk App
    │                             │◀──── PATCH /job/[id] ───────│
    │                             │──── status = 'completed' ──▶│
 ```
+
+---
+
+## Implementation Progress
+
+For a detailed breakdown of what has been built so far across the Kiosk, Mobile, and Agent subsystems, see the live tracker at `docs/IMPLEMENTATION_STATUS.md`.
 
 ---
 
