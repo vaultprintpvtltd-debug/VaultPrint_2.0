@@ -1,0 +1,15 @@
+{
+  "name": "@vaultprint/agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VaultPrint print agent — runs on each kiosk PC, polls for jobs, prints via SumatraPDF/CUPS",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "node agent.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "dotenv": "^16.5.0"
+  }
+}

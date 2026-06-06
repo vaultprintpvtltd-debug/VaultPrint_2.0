@@ -217,29 +217,42 @@ export function middleware(req: NextRequest) {
 
 ## Print Agent (`agent/`)
 
-The agent runs locally on each kiosk PC managed by `pm2`.
+Standalone Node.js process (not in pnpm workspace). Runs on each kiosk PC managed by `pm2`.
 
-| Behaviour | Detail |
-|---|---|
-| **Polls** | `GET kiosk./api/kiosk/[id]/queue` every 3 seconds |
-| **Claims** | `claim_next_job()` with `FOR UPDATE SKIP LOCKED` — prevents double-print |
-| **OS detection** | `process.platform` at startup |
-| **Windows print** | `SumatraPDF.exe -print-to` |
-| **macOS/Linux print** | CUPS `lp` command |
-| **File handling** | Downloads PDF via 2-min signed URL, deletes local temp after every job |
-| **Heartbeat** | `POST kiosk./api/kiosk/heartbeat` every 30s |
-| **Crash recovery** | `pm2` auto-restarts on crash |
-| **Scoping** | Only processes jobs matching its own `KIOSK_ID` |
+### Current Implementation Status
+
+| Behaviour | Status | Detail |
+|---|---|---|
+| **Heartbeat** | ✅ Implemented | `POST /api/kiosk/heartbeat` every 30s — updates `last_heartbeat`, `os_platform`, transitions `offline → idle` |
+| **OS detection** | ✅ Implemented | `process.platform` detected at startup, sent with each heartbeat |
+| **Crash recovery** | ✅ Implemented | `pm2` auto-restarts on crash (max 50, 5s delay) |
+| **Queue Polling** | ⏳ Pending | `GET /api/kiosk/[id]/queue` every 3s |
+| **Job Claiming** | ⏳ Pending | `claim_next_job()` with `FOR UPDATE SKIP LOCKED` |
+| **Windows print** | ⏳ Pending | `SumatraPDF.exe -print-to` |
+| **macOS/Linux print** | ⏳ Pending | CUPS `lp` command |
+| **File handling** | ⏳ Pending | Download PDF via signed URL, delete local temp after each job |
 
 ### Agent `.env` Variables
 
 ```env
 KIOSK_ID=<uuid-from-admin-panel>
 KIOSK_API_KEY=<api-key-from-admin-panel>
-KIOSK_API_BASE_URL=https://kiosk.vaultprintpvtltd.online
+KIOSK_API_BASE_URL=https://kiosk.vaultprintpvtltd.online   # prod
+# KIOSK_API_BASE_URL=http://localhost:3001                  # dev
+PRINTER_NAME=                                               # exact OS printer name
 ```
 
-> **Startup guard:** If `KIOSK_API_BASE_URL` does not contain `kiosk.`, the agent logs a fatal error and exits.
+### Startup Guards
+- **Production:** `KIOSK_API_BASE_URL` must contain `kiosk.` — fatal exit otherwise.
+- **Development:** `localhost` and `127.0.0.1` bypass this guard.
+
+### Running the Agent
+
+```bash
+cd agent && npm install     # first time only
+node agent.js               # direct run
+pm2 start ecosystem.config.js  # production (auto-restart + logs)
+```
 
 ---
 
@@ -268,6 +281,11 @@ This project uses the **Supabase MCP** for database operations. When working on 
    - **Rule:** When writing background API routes that *must* bypass RLS (like generating presigned storage URLs or webhook handlers), **do not** use `createServerClient` from `@supabase/ssr`.
    - **Reason:** `createServerClient` automatically reads browser cookies. If a user happens to have an active session cookie (e.g., from logging into the Admin panel), the SSR client will silently override your `SUPABASE_SERVICE_KEY` with the user's `anon` or `authenticated` access token, leading to unexpected RLS violation errors.
    - **Solution:** Use a pure `createClient` from `@supabase/supabase-js` with `auth: { persistSession: false, autoRefreshToken: false }` to ensure it acts as a true backend service role.
+
+3. **Middleware Request vs. Response Headers:**
+   - **Rule:** To pass data from middleware to a route handler (e.g., `x-kiosk-id`), use `NextResponse.next({ request: { headers } })`, **not** `response.headers.set()`.
+   - **Reason:** `response.headers.set()` only sets **response** headers sent back to the browser. Route handlers read `request.headers`, which won't contain those values.
+   - **Solution:** Clone the incoming request headers, add your custom values, and pass them via the `request` option of `NextResponse.next()`.
 
 ---
 

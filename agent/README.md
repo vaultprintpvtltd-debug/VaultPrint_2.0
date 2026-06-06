@@ -1,18 +1,57 @@
 # Print Agent
 
-This directory contains the Node.js print agent that runs physically on the kiosk PC. It polls the Supabase database (via the Kiosk App's API routes) for queued print jobs and sends them to the local printer.
+Standalone Node.js process that runs on each kiosk PC. Communicates with the Kiosk App's API routes (authenticated via Bearer API key) to send heartbeats and process print jobs.
 
-## Current Setup Status
+## Quick Start
 
-The `.env` file for this agent has been manually populated with the credentials for a test kiosk:
-- **Kiosk ID:** `243970a3-47a6-4220-95fd-719d8fa311fe`
-- **API Key:** `181d...`
-- **Base URL:** `https://kiosk.vaultprintpvtltd.online` (Currently pointing to production, should be overridden to `http://localhost:3001` during local dev testing).
+```bash
+# Install dependencies (standalone, not part of pnpm workspace)
+npm install
 
-## Agent Responsibilities
-1. **Heartbeat:** Sends a POST request to `/api/kiosk/heartbeat` every 30s.
-2. **Poll Queue:** Polls `/api/kiosk/[id]/queue` every 3s.
-3. **Print Execution:** Uses `SumatraPDF.exe` (Windows) or `lp` (macOS/Linux) to print downloaded PDF files.
-4. **Completion:** Calls `/api/kiosk/[id]/job/[job_id]` to mark jobs as `completed` or `failed`.
+# Run directly
+node agent.js
 
-*Note: The actual agent code (Node.js script) is pending implementation in Phase 3.*
+# Run with pm2 (production)
+pm2 start ecosystem.config.js
+pm2 logs vaultprint-agent
+pm2 save    # persist across reboots
+```
+
+## Configuration (`.env`)
+
+| Variable | Required | Description |
+|---|---|---|
+| `KIOSK_ID` | ✅ | UUID from admin panel when creating a kiosk |
+| `KIOSK_API_KEY` | ✅ | 64-char hex key shown once during kiosk creation |
+| `KIOSK_API_BASE_URL` | ✅ | `https://kiosk.vaultprintpvtltd.online` (prod) or `http://localhost:3001` (dev) |
+| `PRINTER_NAME` | ❌ | Exact OS printer name (e.g. `Canon G2000 series`) |
+| `SUPABASE_URL` | ❌ | Not used by agent directly — agent talks to kiosk API only |
+| `SUPABASE_SERVICE_KEY` | ❌ | Not used by agent directly |
+
+### Startup Guard
+- In **production**: `KIOSK_API_BASE_URL` must contain `kiosk.` (prevents accidentally pointing at the wrong service).
+- In **development**: `localhost` and `127.0.0.1` bypass this guard.
+
+## What's Implemented
+
+| Feature | Status | Details |
+|---|---|---|
+| Heartbeat | ✅ | `POST /api/kiosk/heartbeat` every 30s. Updates `last_heartbeat`, `os_platform`, transitions `offline → idle`. |
+| Queue Polling | ⏳ Pending | `GET /api/kiosk/[id]/queue` every 3s |
+| Print Execution | ⏳ Pending | `SumatraPDF.exe` (Windows) / `lp` (macOS/Linux) |
+| Job Completion | ⏳ Pending | `PATCH /api/kiosk/[id]/job/[jid]` → `completed` or `failed` |
+| Graceful Shutdown | ✅ | Handles `SIGINT`, `SIGTERM`, uncaught exceptions |
+
+## pm2 Configuration
+
+The `ecosystem.config.js` configures:
+- **Auto-restart:** Up to 50 restarts, 5s delay between restarts
+- **Logging:** `agent/logs/out.log` and `agent/logs/error.log`
+- **Memory limit:** 200MB (auto-restarts if exceeded)
+- **Watch:** Disabled (agent is long-running, not file-dependent)
+
+## Verified
+
+The agent was tested locally on Windows 11 (`win32`) for 11 minutes:
+- All heartbeats returned `200 OK`
+- Database confirmed: `status: idle`, `os_platform: win32`, `last_heartbeat` updated every 30s

@@ -152,10 +152,15 @@ export async function middleware(request: NextRequest) {
 
     // Attach the validated kiosk ID to the request headers so that
     // downstream API route handlers can read it without re-querying.
-    const response = NextResponse.next()
-    response.headers.set('x-kiosk-id', kiosk.id)
-    response.headers.set('x-kiosk-status', kiosk.status)
-    return response
+    // We clone the incoming headers and add our custom ones, then pass
+    // them via NextResponse.next({ request: { headers } }).
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-kiosk-id', kiosk.id)
+    requestHeaders.set('x-kiosk-status', kiosk.status)
+
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    })
   }
 
   // ─── DEFAULT: PASS THROUGH ───────────────────────────────────────────

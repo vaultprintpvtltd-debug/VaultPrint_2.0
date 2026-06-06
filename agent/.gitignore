@@ -1,3 +1,9 @@
 # Ignore environment variables
 .env
 .env.*
+
+# pm2 logs
+logs/
+
+# Dependencies
+node_modules/
