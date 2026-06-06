@@ -1,5 +1,5 @@
 {
-    "buildCommand": "cd ../.. && pnpm build --filter @vaultprint/mobile",
+    "buildCommand": "cd ../.. && pnpm --filter @vaultprint/mobile run build",
     "installCommand": "cd ../.. && pnpm install",
     "framework": "nextjs"
 }
