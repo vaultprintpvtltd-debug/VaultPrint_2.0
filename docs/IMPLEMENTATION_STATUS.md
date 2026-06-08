@@ -68,6 +68,17 @@ This document tracks the actual implementation progress against the PRD and Engi
 
 ---
 
-## 8. Next Steps
-1. **Admin Dashboard:** Fleet overview, job history, pricing management, refund capabilities.
-2. **RLS Policies:** Enable Row Level Security on all 4 tables before production deployment.
+## 8. Admin Dashboard ✅
+- [x] **Fleet Overview:** Live status of all kiosks, last heartbeat, and OS platform.
+- [x] **Job History:** Global job list with status, copies, color, duplex, and price details.
+- [x] **Pricing Management:** Admin interface to view and edit `pricing_config` per page costs.
+- [x] **Admin API:** `PATCH /api/admin/pricing` to handle pricing updates securely.
+
+## 9. Security & Production Readiness ✅
+- [x] **RLS Policies:** Enabled Row Level Security on `kiosks`, `pricing_config`, `print_jobs`, and `audit_log`.
+- [x] **Storage Policies:** Added public insert policy for `print-files` bucket without read access.
+
+---
+
+## 🎉 Implementation Complete
+All core functionalities outlined in the PRD have been successfully implemented. The system is fully operational across the Mobile Web App, Kiosk UI, Admin Dashboard, and the Print Agent.

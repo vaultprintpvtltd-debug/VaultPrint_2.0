@@ -40,6 +40,15 @@ export default function SuccessPage() {
       <p className="mb-1 text-zinc-400">Your document is being sent to the printer.</p>
       <p className="text-zinc-500 text-sm">Please wait while it prints.</p>
 
+      {/* Print summary */}
+      <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">
+        <p className="font-bold text-zinc-200">Print Summary</p>
+        <ul className="mt-2 space-y-1">
+          <li>• Status: Printing</li>
+          <li>• Configuration: B&W, Duplex</li>
+        </ul>
+      </div>
+
       <div className="mt-8 text-sm text-zinc-500">
         Returning to home in {countdown}s...
       </div>

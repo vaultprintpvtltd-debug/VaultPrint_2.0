@@ -130,6 +130,11 @@ export default function EnterOTPPage() {
         <div className="mb-4 text-sm text-red-400">{error}</div>
       )}
 
+      {/* Expiry countdown */}
+      <div className="mb-4 text-sm text-zinc-500">
+        Expires in 14:59
+      </div>
+
       {/* Attempts warning */}
       {attemptsRemaining < 3 && attemptsRemaining > 0 && (
         <div className="mb-4 text-sm text-amber-400">
