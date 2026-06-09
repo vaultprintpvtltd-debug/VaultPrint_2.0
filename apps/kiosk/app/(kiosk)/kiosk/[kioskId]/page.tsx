@@ -96,26 +96,17 @@ export default function KioskQRPage() {
   const qrUrl = `${APP_DOMAIN}/start?k=${kioskId}&t=${qrTimestamp}`
 
   // ── Formatted time ─────────────────────────────────────────────────────
-  const formattedTime = currentTime.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  })
-
-  const formattedDate = currentTime.toLocaleDateString('en-IN', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  const hours = currentTime.getHours() % 12 || 12
+  const minutes = currentTime.getMinutes().toString().padStart(2, '0')
+  const ampm = currentTime.getHours() >= 12 ? 'PM' : 'AM'
+  const formattedTime = `${hours} : ${minutes} ${ampm}`
 
   // ── Loading state ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950">
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-ponnala">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-emerald-500" />
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-teal-400" />
           <p className="text-lg text-zinc-400">Connecting to VaultPrint…</p>
         </div>
       </div>
@@ -125,7 +116,7 @@ export default function KioskQRPage() {
   // ── Error state ────────────────────────────────────────────────────────
   if (error || !kioskInfo) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950">
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-ponnala">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
             <svg className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -141,138 +132,105 @@ export default function KioskQRPage() {
 
   // ── Main QR Display ────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100 select-none">
+    <div className="relative flex h-screen w-screen flex-col items-center overflow-hidden bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-ponnala">
+      
+      {/* Background Printer Image */}
+      <img src="/printer_bg.svg" alt="" className="absolute bottom-0 right-0 w-[600px] opacity-80 pointer-events-none" />
 
-      {/* ── HEADER BAR ───────────────────────────────────────────────── */}
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/80 px-8 py-4 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-          {/* VaultPrint Logo / Brand */}
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-            <svg className="h-6 w-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
+      {/* Main Glassmorphism Container */}
+      <div className="relative mt-12 flex h-[85%] w-[90%] max-w-6xl flex-col rounded-[2.5rem] border border-white/10 bg-white/5 p-10 shadow-2xl backdrop-blur-xl">
+        
+        {/* Top Header Row inside the card */}
+        <header className="flex items-center justify-between pb-8">
+          <div className="flex items-center gap-4">
+            <img src="/LOGO.svg" alt="VaultPrint Logo" className="h-14 w-auto" />
+            <div className="flex flex-col justify-center">
+              <h1 className="text-2xl font-bold tracking-tight text-white leading-none">Vault<br/>Print</h1>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-zinc-100">VaultPrint</h1>
-            <p className="text-sm text-zinc-400">{kioskInfo.name}</p>
-          </div>
-        </div>
 
-        <div className="text-right">
-          <p className="text-xl font-semibold tabular-nums tracking-wide text-zinc-100">
-            {formattedTime}
-          </p>
-          <p className="text-sm text-zinc-500">{formattedDate}</p>
-        </div>
-      </header>
-
-      {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
-      <main className="flex flex-1 items-center justify-center gap-16 px-8">
-
-        {/* ── QR Code Section ──────────────────────────────────────── */}
-        <div className="flex flex-col items-center gap-6">
-          <div className="rounded-3xl border border-zinc-800 bg-white p-6 shadow-2xl shadow-emerald-500/5">
-            <QRCodeSVG
-              value={qrUrl}
-              size={320}
-              level="M"
-              bgColor="#ffffff"
-              fgColor="#09090b"
-              style={{ width: 320, height: 320 }}
+          {/* Status Pill */}
+          <div className="flex items-center gap-3 rounded-full border border-white/5 bg-black/40 px-8 py-3 shadow-inner">
+            <div
+              className={`h-3 w-3 rounded-full ${
+                kioskInfo.status === 'online' || kioskInfo.status === 'idle'
+                  ? 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]'
+                  : kioskInfo.status === 'printing'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-red-500'
+              }`}
             />
-          </div>
-          <p className="text-sm text-zinc-500">
-            QR refreshes automatically every 5 minutes
-          </p>
-        </div>
-
-        {/* ── Instructions Section ─────────────────────────────────── */}
-        <div className="flex max-w-md flex-col gap-8">
-          <div>
-            <h2 className="mb-2 text-3xl font-bold tracking-tight text-zinc-100">
-              Print Your Document
-            </h2>
-            <p className="text-lg text-zinc-400">
-              Scan the QR code with your phone to get started. No app required.
-            </p>
-          </div>
-
-          {/* Step-by-step instructions */}
-          <div className="flex flex-col gap-6">
-            <InstructionStep
-              step={1}
-              title="Scan QR Code"
-              description="Open your phone camera and scan the QR code on the left."
-            />
-            <InstructionStep
-              step={2}
-              title="Upload & Pay"
-              description="Upload your PDF, choose settings, and pay securely via Razorpay."
-            />
-            <InstructionStep
-              step={3}
-              title="Enter OTP"
-              description="Enter the 6-digit code shown on your phone into this kiosk."
-            />
-          </div>
-        </div>
-      </main>
-
-      {/* ── STATUS BAR ───────────────────────────────────────────────── */}
-      <footer className="flex shrink-0 items-center justify-between border-t border-zinc-800 bg-zinc-900/80 px-8 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div
-            className={`h-2.5 w-2.5 rounded-full ${
-              kioskInfo.status === 'online' || kioskInfo.status === 'idle'
-                ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
-                : kioskInfo.status === 'printing'
-                ? 'bg-amber-500 shadow-sm shadow-amber-500/50 animate-pulse'
-                : 'bg-red-500 shadow-sm shadow-red-500/50'
-            }`}
-          />
-          <span className="text-sm text-zinc-400">
-            Printer:{' '}
-            <span className="font-medium text-zinc-300 capitalize">
-              {kioskInfo.status}
+            <span className="text-sm font-semibold tracking-wider text-zinc-300 uppercase">
+              PRINTER : {kioskInfo.status}
             </span>
-          </span>
-        </div>
+          </div>
 
-        {kioskInfo.location && (
-          <span className="text-sm text-zinc-500">
-            📍 {kioskInfo.location}
-          </span>
-        )}
+          {/* Time Pill */}
+          <div className="rounded-full border border-white/5 bg-black/40 px-8 py-3 shadow-inner">
+            <span className="font-jakarta text-sm font-semibold tracking-wide text-zinc-300 uppercase">
+              {formattedTime} IST
+            </span>
+          </div>
+        </header>
 
-        <span className="text-xs text-zinc-600">
-          Kiosk ID: {kioskId.slice(0, 8)}…
-        </span>
-      </footer>
-    </div>
-  )
-}
+        {/* Divider */}
+        <div className="mb-12 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-// ---------------------------------------------------------------------------
-// InstructionStep — Reusable component for the 3-step instruction strip
-// ---------------------------------------------------------------------------
+        {/* Two-column layout */}
+        <main className="flex flex-1 items-center justify-between px-16">
+          
+          {/* Left: Stepper */}
+          <div className="flex flex-col gap-10 w-[45%] relative">
+            {/* Vertical Line Base */}
+            <div className="absolute left-[1.35rem] top-10 bottom-10 w-[3px] bg-white/10" />
+            {/* Vertical Line Active Part */}
+            <div className="absolute left-[1.35rem] top-10 h-[40%] w-[3px] bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />
 
-function InstructionStep({
-  step,
-  title,
-  description,
-}: {
-  step: number
-  title: string
-  description: string
-}) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-lg font-bold text-emerald-500">
-        {step}
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
-        <p className="text-sm text-zinc-400">{description}</p>
+            {/* Step 1 */}
+            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-white/10 bg-[#163b3e]/80 px-8 py-6 shadow-lg backdrop-blur-md">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-teal-400 shadow-[0_0_15px_rgba(45,212,191,0.8)]" />
+              <div>
+                <h3 className="text-3xl font-semibold text-white mb-1">Scan the QR</h3>
+                <p className="text-sm text-teal-100/70">with your phone camera to start printing</p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-6">
+              <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
+              <div>
+                <h3 className="text-3xl font-semibold text-zinc-300 mb-1">Upload & Pay</h3>
+                <p className="text-sm text-zinc-500">Select files and printing options</p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-6">
+              <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
+              <div>
+                <h3 className="text-3xl font-semibold text-zinc-300 mb-1">Verify & Print</h3>
+                <p className="text-sm text-zinc-500">Enter the print code shown on your phone</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: QR Code Box */}
+          <div className="flex w-[45%] flex-col items-center justify-center">
+            <div className="rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+              <div className="rounded-xl bg-white p-4 flex items-center justify-center">
+                <QRCodeSVG
+                  value={qrUrl}
+                  size={360}
+                  level="M"
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  style={{ width: 360, height: 360 }}
+                />
+              </div>
+            </div>
+          </div>
+
+        </main>
       </div>
     </div>
   )

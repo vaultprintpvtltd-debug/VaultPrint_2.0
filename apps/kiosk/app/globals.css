@@ -10,6 +10,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-ponnala: var(--font-ponnala);
+  --font-jakarta: var(--font-jakarta);
 }
 
 @media (prefers-color-scheme: dark) {
