@@ -42,6 +42,7 @@ export default function AdminKiosksPage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // Newly created kiosk — shown once after creation
   const [newKioskResult, setNewKioskResult] = useState<{
@@ -102,6 +103,33 @@ export default function AdminKiosksPage() {
     } catch {
       setFormError('An unexpected error occurred.')
       setSubmitting(false)
+    }
+  }
+
+  // ── Handle delete ──────────────────────────────────────────────────────
+  async function handleDelete(id: string) {
+    if (!confirm('Are you sure you want to delete this kiosk? This action cannot be undone.')) {
+      return
+    }
+
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/admin/kiosks/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        alert(errorData.error || 'Failed to delete kiosk')
+        return
+      }
+
+      // Refresh the kiosk list
+      fetchKiosks()
+    } catch {
+      alert('An unexpected error occurred.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -317,6 +345,7 @@ export default function AdminKiosksPage() {
                   <th className="px-4 py-3 text-left font-semibold text-zinc-300">OS</th>
                   <th className="px-4 py-3 text-left font-semibold text-zinc-300">Last Heartbeat</th>
                   <th className="px-4 py-3 text-left font-semibold text-zinc-300">ID</th>
+                  <th className="px-4 py-3 text-right font-semibold text-zinc-300">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
@@ -331,6 +360,15 @@ export default function AdminKiosksPage() {
                     <td className="px-4 py-3 text-zinc-400">{kiosk.os_platform || '—'}</td>
                     <td className="px-4 py-3 text-zinc-400">{formatHeartbeat(kiosk.last_heartbeat)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-zinc-500">{kiosk.id.slice(0, 8)}…</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(kiosk.id)}
+                        disabled={deletingId === kiosk.id}
+                        className="rounded px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                      >
+                        {deletingId === kiosk.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
