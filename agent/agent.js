@@ -13,6 +13,7 @@
 
 require('dotenv').config()
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { exec } = require('child_process')
 const crypto = require('crypto')
@@ -253,6 +254,48 @@ async function pollQueue() {
   }
 }
 
+// ─── STALE JOB RECOVERY ─────────────────────────────────────────────────────
+
+/**
+ * On startup, any job stuck in 'printing' for >10 minutes means the agent
+ * crashed mid-print. Reset them to 'queued' so they can be retried.
+ */
+async function recoverStaleJobs() {
+  log('Checking for stale jobs stuck in \'printing\'...')
+
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+
+  try {
+    // We call the kiosk API rather than hitting Supabase directly,
+    // so no Supabase keys are needed in the agent.
+    const res = await fetch(
+      `${KIOSK_API_BASE_URL}/api/kiosk/${KIOSK_ID}/stale-jobs`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${KIOSK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ stale_before: tenMinutesAgo }),
+      }
+    )
+
+    if (!res.ok) {
+      logError(`Stale job recovery failed (HTTP ${res.status})`, await res.text())
+      return
+    }
+
+    const data = await res.json()
+    if (data.recovered && data.recovered > 0) {
+      log(`✓ Recovered ${data.recovered} stale job(s) → reset to 'queued'.`)
+    } else {
+      log('✓ No stale jobs found.')
+    }
+  } catch (err) {
+    logError('Stale job recovery network error (non-fatal):', err.message)
+  }
+}
+
 // ─── MAIN ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -277,6 +320,9 @@ async function main() {
   } else {
     log('⚠ Initial heartbeat failed. Will retry in 30s. Check your API key and network.')
   }
+
+  // Recover any jobs stuck in 'printing' from a previous crash
+  await recoverStaleJobs()
 
   // Start heartbeat loop
   log(`Starting heartbeat loop (every ${HEARTBEAT_INTERVAL_MS / 1000}s)...`)

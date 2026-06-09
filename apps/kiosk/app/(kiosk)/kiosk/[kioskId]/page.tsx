@@ -20,7 +20,7 @@ import { useKioskRealtime } from '@/hooks/use-kiosk-realtime'
 //   - Bottom status bar shows printer status and last job time
 // ---------------------------------------------------------------------------
 
-const APP_DOMAIN = 'https://app.vaultprintpvtltd.online'
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || 'https://vaultprint-mobile.vercel.app'
 const QR_REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 interface KioskInfo {
