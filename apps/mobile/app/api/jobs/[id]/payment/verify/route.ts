@@ -53,6 +53,12 @@ export async function POST(
   // 1. Verify signature
   const valid = isValidSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)
   if (!valid) {
+    console.error('[Verify] Invalid payment signature for session:', sessionId, {
+      razorpay_order_id,
+      razorpay_payment_id,
+      signature_length: razorpay_signature.length,
+      key_secret_set: !!process.env.RAZORPAY_KEY_SECRET,
+    })
     return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 })
   }
 
