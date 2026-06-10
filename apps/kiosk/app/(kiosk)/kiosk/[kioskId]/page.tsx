@@ -142,11 +142,9 @@ export default function KioskQRPage() {
 
         {/* Top Header Row inside the card */}
         <header className="flex items-center justify-between pb-8">
-          <div className="flex items-center gap-4">
-            <img src="/LOGO.svg" alt="VaultPrint Logo" className="h-14 w-auto" />
-            <div className="flex flex-col justify-center">
-              <h1 className="text-2xl font-bold tracking-tight text-white leading-none">Vault<br />Print</h1>
-            </div>
+          <div className="flex items-center gap-4 rounded-full border border-white/10 bg-white/5 px-6 py-3 shadow-inner backdrop-blur-md">
+            <img src="/LOGO.svg" alt="VaultPrint Logo" className="h-10 w-auto" />
+            <h1 className="text-xl font-bold tracking-tight text-white leading-none">VaultPrint</h1>
           </div>
 
           {/* Status Pill */}
