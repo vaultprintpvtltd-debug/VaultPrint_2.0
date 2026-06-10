@@ -37,6 +37,7 @@ export default function KioskQRPage() {
   const [kioskInfo, setKioskInfo] = useState<KioskInfo | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [qrTimestamp, setQrTimestamp] = useState(Date.now())
+  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes in seconds
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,13 +82,19 @@ export default function KioskQRPage() {
     return () => clearInterval(clockInterval)
   }, [])
 
-  // ── QR regeneration (every 5 minutes) ──────────────────────────────────
+  // ── QR regeneration (every 5 minutes with live countdown) ──────────────
   // Adding a timestamp query param to the QR URL forces phones to treat
   // each scan as a fresh session and prevents browser caching.
   useEffect(() => {
     const qrInterval = setInterval(() => {
-      setQrTimestamp(Date.now())
-    }, QR_REFRESH_INTERVAL_MS)
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          setQrTimestamp(Date.now())
+          return 300
+        }
+        return prev - 1
+      })
+    }, 1000)
 
     return () => clearInterval(qrInterval)
   }, [])
@@ -177,36 +184,43 @@ export default function KioskQRPage() {
         <main className="flex flex-1 items-center justify-between px-16">
 
           {/* Left: Stepper */}
-          <div className="flex flex-col gap-10 w-[45%] relative">
-            {/* Vertical Line Base */}
-            <div className="absolute left-[1.35rem] top-10 bottom-10 w-[3px] bg-white/10" />
-            {/* Vertical Line Active Part */}
-            <div className="absolute left-[1.35rem] top-10 h-[40%] w-[3px] bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />
-
-            {/* Step 1 */}
-            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-white/10 bg-[#163b3e]/80 px-8 py-6 shadow-lg backdrop-blur-md">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-teal-400 shadow-[0_0_15px_rgba(45,212,191,0.8)]" />
-              <div>
-                <h3 className="text-3xl font-semibold text-white mb-1">Scan the QR</h3>
-                <p className="text-sm text-teal-100/70">with your phone camera to start printing</p>
-              </div>
+          <div className="flex flex-col gap-8 w-[45%]">
+            <div className="mb-2">
+              <h2 className="text-sm font-bold tracking-widest text-teal-400 uppercase">How It Works</h2>
+              <p className="text-xs text-zinc-400 mt-1">Get your documents printed in three simple steps</p>
             </div>
 
-            {/* Step 2 */}
-            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-6">
-              <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
-              <div>
-                <h3 className="text-3xl font-semibold text-zinc-300 mb-1">Upload & Pay</h3>
-                <p className="text-sm text-zinc-500">Select files and printing options</p>
-              </div>
-            </div>
+            <div className="flex flex-col gap-6 relative">
+              {/* Vertical Line Base */}
+              <div className="absolute left-[1.35rem] top-10 bottom-10 w-[3px] bg-white/10" />
+              {/* Vertical Line Active Part */}
+              <div className="absolute left-[1.35rem] top-10 h-[40%] w-[3px] bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />
 
-            {/* Step 3 */}
-            <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-6">
-              <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
-              <div>
-                <h3 className="text-3xl font-semibold text-zinc-300 mb-1">Verify & Print</h3>
-                <p className="text-sm text-zinc-500">Enter the 6-digit OTP shown on your phone</p>
+              {/* Step 1 */}
+              <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-white/10 bg-[#163b3e]/80 px-8 py-5 shadow-lg backdrop-blur-md">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-teal-400 shadow-[0_0_15px_rgba(45,212,191,0.8)]" />
+                <div>
+                  <h3 className="text-2xl font-semibold text-white mb-1">Scan the QR</h3>
+                  <p className="text-xs text-teal-100/70">with your phone camera to start printing</p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-5">
+                <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
+                <div>
+                  <h3 className="text-2xl font-semibold text-zinc-300 mb-1">Upload & Pay</h3>
+                  <p className="text-xs text-zinc-500">Select files and printing options</p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="relative z-10 flex items-center gap-6 rounded-[2rem] border border-dashed border-white/10 bg-black/20 px-8 py-5">
+                <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
+                <div>
+                  <h3 className="text-2xl font-semibold text-zinc-300 mb-1">Verify & Print</h3>
+                  <p className="text-xs text-zinc-500">Enter the 6-digit OTP shown on your phone</p>
+                </div>
               </div>
             </div>
           </div>
@@ -224,6 +238,17 @@ export default function KioskQRPage() {
                   style={{ width: 360, height: 360 }}
                 />
               </div>
+            </div>
+
+            {/* QR Refresh & Security Context Info */}
+            <div className="mt-6 flex flex-col items-center text-center gap-2">
+              <div className="flex items-center gap-2 text-zinc-300 text-sm bg-black/30 border border-white/5 rounded-full px-5 py-2 shadow-inner backdrop-blur-md">
+                <div className="h-2.5 w-2.5 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                <span className="tracking-wide">QR Refreshes in <strong className="font-bold text-teal-400 font-jakarta">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</strong></span>
+              </div>
+              <p className="text-xs text-zinc-400 max-w-sm mt-1 leading-relaxed">
+                Scan using your phone's camera. Supports PDF document printing. For your security, uploaded files are completely deleted immediately after printing.
+              </p>
             </div>
           </div>
 
