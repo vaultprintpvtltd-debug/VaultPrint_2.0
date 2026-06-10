@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${ponnala.variable} ${jakarta.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased font-ponnala`}
+      className={`${ponnala.variable} ${jakarta.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased font-jakarta`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

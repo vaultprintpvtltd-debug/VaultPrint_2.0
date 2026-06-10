@@ -104,7 +104,7 @@ export default function KioskQRPage() {
   // ── Loading state ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-ponnala">
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-jakarta">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-teal-400" />
           <p className="text-lg text-zinc-400">Connecting to VaultPrint…</p>
@@ -116,7 +116,7 @@ export default function KioskQRPage() {
   // ── Error state ────────────────────────────────────────────────────────
   if (error || !kioskInfo) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-ponnala">
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-jakarta">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
             <svg className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -132,33 +132,32 @@ export default function KioskQRPage() {
 
   // ── Main QR Display ────────────────────────────────────────────────────
   return (
-    <div className="relative flex h-screen w-screen flex-col items-center overflow-hidden bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-ponnala">
-      
+    <div className="relative flex h-screen w-screen flex-col items-center overflow-hidden bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
+
       {/* Background Printer Image */}
       <img src="/printer_bg.svg" alt="" className="absolute bottom-0 right-0 w-[600px] opacity-80 pointer-events-none" />
 
       {/* Main Glassmorphism Container */}
       <div className="relative mt-12 flex h-[85%] w-[90%] max-w-6xl flex-col rounded-[2.5rem] border border-white/10 bg-white/5 p-10 shadow-2xl backdrop-blur-xl">
-        
+
         {/* Top Header Row inside the card */}
         <header className="flex items-center justify-between pb-8">
           <div className="flex items-center gap-4">
             <img src="/LOGO.svg" alt="VaultPrint Logo" className="h-14 w-auto" />
             <div className="flex flex-col justify-center">
-              <h1 className="text-2xl font-bold tracking-tight text-white leading-none">Vault<br/>Print</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white leading-none">Vault<br />Print</h1>
             </div>
           </div>
 
           {/* Status Pill */}
           <div className="flex items-center gap-3 rounded-full border border-white/5 bg-black/40 px-8 py-3 shadow-inner">
             <div
-              className={`h-3 w-3 rounded-full ${
-                kioskInfo.status === 'online' || kioskInfo.status === 'idle'
+              className={`h-3 w-3 rounded-full ${kioskInfo.status === 'online' || kioskInfo.status === 'idle'
                   ? 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]'
                   : kioskInfo.status === 'printing'
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-red-500'
-              }`}
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-red-500'
+                }`}
             />
             <span className="text-sm font-semibold tracking-wider text-zinc-300 uppercase">
               PRINTER : {kioskInfo.status}
@@ -178,7 +177,7 @@ export default function KioskQRPage() {
 
         {/* Two-column layout */}
         <main className="flex flex-1 items-center justify-between px-16">
-          
+
           {/* Left: Stepper */}
           <div className="flex flex-col gap-10 w-[45%] relative">
             {/* Vertical Line Base */}
@@ -209,7 +208,7 @@ export default function KioskQRPage() {
               <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-300" />
               <div>
                 <h3 className="text-3xl font-semibold text-zinc-300 mb-1">Verify & Print</h3>
-                <p className="text-sm text-zinc-500">Enter the print code shown on your phone</p>
+                <p className="text-sm text-zinc-500">Enter the 6-digit OTP shown on your phone</p>
               </div>
             </div>
           </div>
