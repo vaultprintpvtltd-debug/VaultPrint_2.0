@@ -138,7 +138,7 @@ export default function KioskQRPage() {
       <img src="/printer_bg.svg" alt="" className="absolute bottom-0 right-0 w-[600px] opacity-80 pointer-events-none" />
 
       {/* Main Glassmorphism Container */}
-      <div className="relative mt-12 flex h-[85%] w-[90%] max-w-6xl flex-col rounded-[2.5rem] border border-white/10 bg-white/5 p-10 shadow-2xl backdrop-blur-xl">
+      <div className="relative mt-12 flex h-[80%] w-[90%] max-w-6xl flex-col rounded-[2.5rem] border border-white/10 bg-white/5 p-10 shadow-2xl backdrop-blur-xl">
 
         {/* Top Header Row inside the card */}
         <header className="flex items-center justify-between pb-8">
@@ -231,6 +231,21 @@ export default function KioskQRPage() {
 
         </main>
       </div>
+
+      {/* Glassmorphism Footer */}
+      <footer className="absolute bottom-8 flex w-[90%] max-w-6xl items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-12 py-5 shadow-xl backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium tracking-wider text-zinc-400 uppercase">Kiosk ID</span>
+          <div className="h-4 w-px bg-white/20" />
+          <span className="font-jakarta text-sm font-bold tracking-widest text-teal-400">{kioskId}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium tracking-wider text-zinc-400 uppercase">Printer Location</span>
+          <div className="h-4 w-px bg-white/20" />
+          <span className="font-jakarta text-sm font-bold tracking-wide text-zinc-200 uppercase">{kioskInfo.location || 'Not Configured'}</span>
+        </div>
+      </footer>
+
     </div>
   )
 }
