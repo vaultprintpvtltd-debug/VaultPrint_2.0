@@ -1,188 +1,48 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState } from 'react'
 
-// ---------------------------------------------------------------------------
-// /kiosk/[kioskId]/enter-otp — Numpad OTP Entry
-// ---------------------------------------------------------------------------
-
-export default function EnterOTPPage() {
-  const params = useParams<{ kioskId: string }>()
-  const router = useRouter()
-  const kioskId = params.kioskId
-
-  const [digits, setDigits] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [shake, setShake] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [attemptsRemaining, setAttemptsRemaining] = useState(3)
-  const [sessionId, setSessionId] = useState<string | null>(null)
-
-  // Find the queued job's session_id for this kiosk
-  useEffect(() => {
-    async function findJob() {
-      try {
-        // We need to find the queued job — query via a lightweight endpoint
-        // For now, store it from the realtime navigation or query param
-        const urlParams = new URLSearchParams(window.location.search)
-        const sid = urlParams.get('session')
-        if (sid) setSessionId(sid)
-      } catch {}
-    }
-    findJob()
-  }, [kioskId])
-
-  const addDigit = useCallback((d: string) => {
-    if (digits.length >= 6) return
-    setDigits((prev) => [...prev, d])
-    setError(null)
-  }, [digits.length])
-
-  const removeDigit = useCallback(() => {
-    setDigits((prev) => prev.slice(0, -1))
-    setError(null)
-  }, [])
-
-  const submitOTP = useCallback(async () => {
-    if (digits.length !== 6 || !sessionId) return
-    setLoading(true)
-    setError(null)
-
-    try {
-      const res = await fetch(`/api/kiosk/${kioskId}/otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          otp: digits.join(''),
-        }),
-      })
-
-      const data = await res.json()
-
-      if (data.valid) {
-        router.push(`/kiosk/${kioskId}/success?session=${sessionId}`)
-        return
-      }
-
-      // Wrong OTP
-      setAttemptsRemaining(data.attempts_remaining)
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-      setDigits([])
-
-      if (data.attempts_remaining <= 0) {
-        setError(data.reason === 'expired' ? 'Code expired' : 'Too many attempts. Session expired.')
-      } else {
-        setError(`Wrong code. ${data.attempts_remaining} attempt${data.attempts_remaining > 1 ? 's' : ''} left.`)
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
-  }, [digits, sessionId, kioskId, router])
-
-  // Auto-submit when 6 digits entered
-  useEffect(() => {
-    if (digits.length === 6) {
-      submitOTP()
-    }
-  }, [digits.length, submitOTP])
-
-  // Keyboard support
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key >= '0' && e.key <= '9') addDigit(e.key)
-      else if (e.key === 'Backspace') removeDigit()
-      else if (e.key === 'Enter' && digits.length === 6) submitOTP()
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [addDigit, removeDigit, submitOTP, digits.length])
-
-  const numpadKeys = ['1','2','3','4','5','6','7','8','9','','0','⌫']
+export default function KioskEnterOTPPage() {
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 text-zinc-100 p-8">
-      <h1 className="mb-2 text-3xl font-bold">Enter Print Code</h1>
-      <p className="mb-8 text-zinc-400">Type the 6-digit code from your phone</p>
-
-      {/* Digit boxes */}
-      <div className={`mb-6 flex gap-3 ${shake ? 'animate-shake' : ''}`}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className={`flex h-16 w-12 items-center justify-center rounded-xl border-2 text-2xl font-bold ${
-              digits[i]
-                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                : 'border-zinc-700 bg-zinc-900 text-zinc-500'
-            }`}
-          >
-            {digits[i] || '·'}
+    <>
+      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-6 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl w-full max-w-[400px] lg:max-w-none mx-auto flex flex-col items-center justify-center transition-all duration-500 scale-100 opacity-100 aspect-square">
+        <div className="rounded-xl bg-white/5 border border-white/10 p-8 flex flex-col items-center justify-center w-full h-full text-center gap-6 shadow-inner">
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2 tracking-wide">Enter OTP</h3>
+            <p className="text-sm text-zinc-400 leading-relaxed max-w-[250px]">
+              Please enter the 6-digit OTP shown on your mobile device to start printing.
+            </p>
           </div>
-        ))}
-      </div>
+          
+          <div className="flex items-center gap-2 lg:gap-3">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                type="text"
+                maxLength={1}
+                value={digit}
+                readOnly
+                className="w-10 h-12 lg:w-12 lg:h-14 text-center text-xl lg:text-2xl font-bold font-jakarta text-teal-400 bg-black/40 border border-white/10 rounded-lg focus:outline-none focus:border-teal-400 shadow-inner"
+              />
+            ))}
+          </div>
 
-      {/* Error */}
-      {error && (
-        <div className="mb-4 text-sm text-red-400">{error}</div>
-      )}
-
-      {/* Expiry countdown */}
-      <div className="mb-4 text-sm text-zinc-500">
-        Expires in 14:59
-      </div>
-
-      {/* Attempts warning */}
-      {attemptsRemaining < 3 && attemptsRemaining > 0 && (
-        <div className="mb-4 text-sm text-amber-400">
-          {attemptsRemaining} attempt{attemptsRemaining > 1 ? 's' : ''} remaining
+          <div className="mt-4">
+            <button className="px-8 py-3 bg-teal-500 hover:bg-teal-400 text-white font-semibold rounded-full shadow-[0_0_15px_rgba(45,212,191,0.4)] transition-all uppercase tracking-wider text-sm">
+              Verify
+            </button>
+          </div>
         </div>
-      )}
-
-      {/* Numpad */}
-      <div className="grid grid-cols-3 gap-3">
-        {numpadKeys.map((key, i) => (
-          <button
-            key={i}
-            onClick={() => {
-              if (key === '⌫') removeDigit()
-              else if (key !== '') addDigit(key)
-            }}
-            disabled={loading || key === '' || attemptsRemaining <= 0}
-            className={`flex h-16 w-20 items-center justify-center rounded-xl text-2xl font-bold transition ${
-              key === ''
-                ? 'invisible'
-                : key === '⌫'
-                ? 'border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
-                : 'border border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700'
-            } disabled:opacity-30`}
-          >
-            {key}
-          </button>
-        ))}
       </div>
 
-      {/* Back link */}
-      {attemptsRemaining <= 0 && (
-        <button
-          onClick={() => router.push(`/kiosk/${kioskId}`)}
-          className="mt-8 text-sm text-zinc-500 hover:text-zinc-300"
-        >
-          Return to home screen
-        </button>
-      )}
-
-      <style jsx>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20%, 60% { transform: translateX(-8px); }
-          40%, 80% { transform: translateX(8px); }
-        }
-        .animate-shake { animation: shake 0.4s ease-in-out; }
-      `}</style>
-    </div>
+      <div className="mt-6 lg:mt-8 flex flex-col items-center text-center transition-opacity duration-500 delay-200">
+        <div className="flex items-center gap-2 text-zinc-300 text-sm lg:text-base bg-black/30 border border-teal-500/30 rounded-full px-5 lg:px-6 py-2.5 lg:py-3 shadow-inner backdrop-blur-md">
+          <div className="h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+          <span className="tracking-wide text-amber-300">Ready to Print</span>
+        </div>
+      </div>
+    </>
   )
 }

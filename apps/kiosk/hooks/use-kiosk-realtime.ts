@@ -36,11 +36,17 @@ export function useKioskRealtime(kioskId: string) {
         (payload) => {
           const newRecord = payload.new as Record<string, unknown> | undefined
 
-          // Only navigate when a job transitions to 'queued' status.
-          // This happens when the Mobile App user completes payment and
-          // the OTP is generated.
-          if (newRecord && newRecord.status === 'queued') {
-            router.push(`/kiosk/${kioskId}/enter-otp`)
+          if (newRecord) {
+            if (['created', 'uploaded', 'customized', 'payment_pending'].includes(newRecord.status as string)) {
+              // User has started the session, go to Step 2
+              router.push(`/kiosk/${kioskId}/upload`)
+            } else if (newRecord.status === 'queued') {
+              // User paid, go to Step 3
+              router.push(`/kiosk/${kioskId}/enter-otp`)
+            } else if (['completed', 'failed', 'expired'].includes(newRecord.status as string)) {
+              // Session ended, reset to Step 1
+              router.push(`/kiosk/${kioskId}`)
+            }
           }
         }
       )
