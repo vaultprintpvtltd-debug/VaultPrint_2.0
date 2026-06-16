@@ -104,7 +104,15 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     <div className="relative flex min-h-screen h-full lg:h-screen w-screen flex-col items-center overflow-x-hidden overflow-y-auto lg:overflow-hidden bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
 
       {/* Background Printer Image */}
-      <Image src="/printer_bg.svg" alt="" width={600} height={600} className="absolute bottom-0 right-0 w-[300px] lg:w-[600px] h-auto opacity-80 pointer-events-none" />
+      <Image 
+        src="/printer_bg.svg" 
+        alt="" 
+        width={600} 
+        height={600} 
+        className="absolute bottom-0 right-0 w-[300px] lg:w-[600px] h-auto opacity-80 pointer-events-none" 
+        style={{ height: 'auto' }}
+        priority={true}
+      />
 
       {/* Main Glassmorphism Container */}
       <div className="relative mt-6 lg:mt-12 flex h-auto lg:h-[80%] min-h-[fit-content] w-[95%] lg:w-[90%] max-w-6xl flex-col rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-white/5 p-6 lg:p-10 shadow-2xl backdrop-blur-xl z-10 mb-8 lg:mb-0">
@@ -112,7 +120,14 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
         {/* Top Header Row inside the card */}
         <header className="flex flex-col lg:flex-row items-center justify-between pb-6 lg:pb-8 gap-4 lg:gap-0">
           <div className="flex items-center gap-3 lg:gap-4 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 lg:px-6 lg:py-3 shadow-inner backdrop-blur-md">
-            <Image src="/LOGO.svg" alt="VaultPrint Logo" width={200} height={40} className="h-8 lg:h-10 w-auto" />
+            <Image 
+              src="/LOGO.svg" 
+              alt="VaultPrint Logo" 
+              width={200} 
+              height={40} 
+              className="h-8 lg:h-10 w-auto" 
+              style={{ width: 'auto' }}
+            />
             <h1 className="text-lg lg:text-xl font-bold tracking-tight text-white leading-none">VaultPrint</h1>
           </div>
 
@@ -172,10 +187,20 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 1 */}
-              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep1 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02]' : 'border-white/5 bg-black/20 opacity-60'
+              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${
+                isStep1 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' :
+                (isStep2 || isStep3) ? 'border-teal-500/30 bg-black/40 opacity-100' :
+                'border-white/5 bg-black/20 opacity-60'
+              }`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${
+                  isStep1 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 
+                  (isStep2 || isStep3) ? 'bg-teal-400 text-teal-950' : 'bg-teal-900/50 text-teal-400'
                 }`}>
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${isStep1 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 'bg-teal-900/50 text-teal-400'}`}>
-                  <span>1</span>
+                  {(isStep2 || isStep3) ? (
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : <span>1</span>}
                 </div>
                 <div>
                   <h3 className={`text-xl lg:text-2xl font-semibold mb-1 ${isStep1 ? 'text-white' : 'text-zinc-300'}`}>Scan the QR</h3>
@@ -184,10 +209,20 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 2 */}
-              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep2 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02]' : 'border-dashed border-white/10 bg-black/20 opacity-60'
+              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${
+                isStep2 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' : 
+                isStep3 ? 'border-teal-500/30 bg-black/40 opacity-100' :
+                'border-dashed border-white/10 bg-black/20 opacity-60'
+              }`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${
+                  isStep2 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 
+                  isStep3 ? 'bg-teal-400 text-teal-950' : 'bg-zinc-800 text-zinc-400'
                 }`}>
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${isStep2 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 'bg-zinc-800 text-zinc-400'}`}>
-                  <span>2</span>
+                  {isStep3 ? (
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : <span>2</span>}
                 </div>
                 <div>
                   <h3 className={`text-xl lg:text-2xl font-semibold mb-1 ${isStep2 ? 'text-white' : 'text-zinc-300'}`}>Upload & Pay</h3>
@@ -196,9 +231,12 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 3 */}
-              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep3 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02]' : 'border-dashed border-white/10 bg-black/20 opacity-60'
+              <div className={`relative z-10 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6 rounded-[2rem] border px-6 py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${
+                isStep3 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' : 'border-dashed border-white/10 bg-black/20 opacity-60'
+              }`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${
+                  isStep3 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 'bg-zinc-800 text-zinc-400'
                 }`}>
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-lg ${isStep3 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 'bg-zinc-800 text-zinc-400'}`}>
                   <span>3</span>
                 </div>
                 <div>

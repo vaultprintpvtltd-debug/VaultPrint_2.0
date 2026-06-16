@@ -15,6 +15,7 @@
     "@vaultprint/db": "workspace:*",
     "@vaultprint/lib": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "gsap": "^3.15.0",
     "next": "16.2.7",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",

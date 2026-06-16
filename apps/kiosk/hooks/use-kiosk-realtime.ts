@@ -43,8 +43,14 @@ export function useKioskRealtime(kioskId: string) {
             } else if (newRecord.status === 'queued') {
               // User paid, go to Step 3
               router.push(`/kiosk/${kioskId}/enter-otp`)
-            } else if (['completed', 'failed', 'expired'].includes(newRecord.status as string)) {
-              // Session ended, reset to Step 1
+            } else if (['printing', 'completed'].includes(newRecord.status as string)) {
+              // Job is printing or finished, go to success screen
+              router.push(`/kiosk/${kioskId}/success?jobId=${newRecord.id}`)
+            } else if (newRecord.status === 'failed') {
+              // Session failed, show error screen
+              router.push(`/kiosk/${kioskId}/error`)
+            } else if (newRecord.status === 'expired') {
+              // Session expired, reset quietly
               router.push(`/kiosk/${kioskId}`)
             }
           }
