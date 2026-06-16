@@ -40,6 +40,12 @@ export interface PrintJobRow {
   otp_hash: string | null
   otp_expires_at: string | null
   otp_attempts: number
+  is_collated: boolean
+  pages_per_sheet: number
+  page_order: string
+  border: boolean
+  quality: string
+  fit_scale: string
   status: 'created' | 'uploaded' | 'customized' | 'payment_pending' | 'paid' | 'queued' | 'printing' | 'completed' | 'failed' | 'expired'
   error_message: string | null
   completed_at: string | null

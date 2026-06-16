@@ -90,6 +90,14 @@ export async function PATCH(
   const orientation = ['portrait', 'landscape', 'auto'].includes(body.orientation) ? body.orientation : 'auto'
   const pages_to_print = typeof body.pages_to_print === 'string' ? body.pages_to_print.trim() : 'all'
   const paper_size = 'A4' // Always A4 for v1
+  
+  // Advanced settings
+  const is_collated = typeof body.is_collated === 'boolean' ? body.is_collated : true
+  const pages_per_sheet = [1, 2, 4, 6, 9, 16].includes(parseInt(body.pages_per_sheet, 10)) ? parseInt(body.pages_per_sheet, 10) : 1
+  const page_order = ['horizontal', 'horizontal-reverse', 'vertical', 'vertical-reverse'].includes(body.page_order) ? body.page_order : 'horizontal'
+  const border = body.border === true
+  const quality = ['draft', 'standard', 'high'].includes(body.quality) ? body.quality : 'standard'
+  const fit_scale = ['fit', 'actual', 'shrink'].includes(body.fit_scale) ? body.fit_scale : 'fit'
 
   // 3. Look up pricing
   const { data: pricing, error: pricingError } = await supabase
@@ -124,6 +132,12 @@ export async function PATCH(
       orientation,
       pages_to_print,
       paper_size,
+      is_collated,
+      pages_per_sheet,
+      page_order,
+      border,
+      quality,
+      fit_scale,
       billable_pages,
       price_per_page,
       total_price,
@@ -143,6 +157,9 @@ export async function PATCH(
     price_per_page,
     billable_pages,
     total_price,
-    settings: { copies, color_mode, duplex, orientation, pages_to_print, paper_size },
+    settings: { 
+      copies, color_mode, duplex, orientation, pages_to_print, paper_size,
+      is_collated, pages_per_sheet, page_order, border, quality, fit_scale
+    },
   })
 }
