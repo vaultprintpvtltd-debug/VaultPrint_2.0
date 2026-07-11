@@ -71,8 +71,30 @@ function logError(message, err) {
 
 // ─── HEARTBEAT ──────────────────────────────────────────────────────────────
 
+/**
+ * Mode 2 (Android/Termux) kiosks: detect whether the WiFi hotspot is up by
+ * looking for an AP network interface (ap0 / swlan0 / wlan1) with an IPv4
+ * address. No-op (undefined) on every other platform, so standard kiosks'
+ * heartbeat payload is unchanged.
+ */
+function detectHotspotActive() {
+  if (PLATFORM !== 'android') return undefined
+  try {
+    const interfaces = os.networkInterfaces()
+    const apNames = Object.keys(interfaces).filter((name) =>
+      /^(ap\d*|swlan\d*|wlan1)$/.test(name)
+    )
+    return apNames.some((name) =>
+      (interfaces[name] || []).some((addr) => addr.family === 'IPv4' && !addr.internal)
+    )
+  } catch {
+    return undefined
+  }
+}
+
 async function sendHeartbeat() {
   try {
+    const hotspotActive = detectHotspotActive()
     const response = await fetch(`${KIOSK_API_BASE_URL}/api/kiosk/heartbeat`, {
       method: 'POST',
       headers: {
@@ -82,6 +104,7 @@ async function sendHeartbeat() {
       body: JSON.stringify({
         os_platform: PLATFORM,
         printer_name: PRINTER_NAME,
+        ...(hotspotActive !== undefined ? { hotspot_active: hotspotActive } : {}),
       }),
     })
 

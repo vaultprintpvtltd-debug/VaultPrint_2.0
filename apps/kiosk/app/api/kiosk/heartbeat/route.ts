@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse optional body
-  let body: { os_platform?: string; printer_name?: string } = {}
+  let body: { os_platform?: string; printer_name?: string; hotspot_active?: boolean } = {}
   try {
     body = await request.json()
   } catch {
@@ -59,12 +59,26 @@ export async function POST(request: NextRequest) {
   // Fetch current status to decide if we should bring it online
   const { data: kiosk } = await supabase
     .from('kiosks')
-    .select('status')
+    .select('status, settings')
     .eq('id', kioskId)
     .single()
 
   if (kiosk && kiosk.status === 'offline') {
     updatePayload.status = 'idle'
+  }
+
+  // Mode 2 kiosks report hotspot status (Android only) — surfaced on the
+  // fleet dashboard so a dead hotspot is visible remotely (PRD D2)
+  if (typeof body.hotspot_active === 'boolean') {
+    const settings =
+      kiosk?.settings && typeof kiosk.settings === 'object' && !Array.isArray(kiosk.settings)
+        ? (kiosk.settings as Record<string, unknown>)
+        : {}
+    updatePayload.settings = {
+      ...settings,
+      hotspot_active: body.hotspot_active,
+      hotspot_checked_at: new Date().toISOString(),
+    }
   }
 
   // Update kiosk row

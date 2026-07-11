@@ -11,7 +11,7 @@ export default async function AdminDashboardPage() {
   // Fetch Kiosks
   const { data: kiosks } = await (supabase as any)
     .from('kiosks')
-    .select('id, name, location, last_heartbeat, status, os_platform')
+    .select('id, name, location, last_heartbeat, status, os_platform, settings')
     .order('created_at', { ascending: false })
 
   // Stats
@@ -24,13 +24,22 @@ export default async function AdminDashboardPage() {
   
   const { data: jobsToday } = await (supabase as any)
     .from('print_jobs')
-    .select('id, total_price, status')
+    .select('id, total_price, status, payment_mode')
     .gte('created_at', startOfDay.toISOString())
 
   const totalJobsToday = jobsToday?.length || 0
-  const revenueToday = (jobsToday as any[])
-    ?.filter((j: any) => ['paid', 'queued', 'printing', 'completed'].includes(j.status))
-    .reduce((sum: number, j: any) => sum + (j.total_price || 0), 0) || 0
+  const paidJobsToday = ((jobsToday as any[]) || []).filter((j: any) =>
+    ['paid', 'queued', 'printing', 'completed'].includes(j.status)
+  )
+  const revenueToday = paidJobsToday.reduce(
+    (sum: number, j: any) => sum + (Number(j.total_price) || 0), 0
+  )
+  const revenueRazorpay = paidJobsToday
+    .filter((j: any) => j.payment_mode !== 'pos')
+    .reduce((sum: number, j: any) => sum + (Number(j.total_price) || 0), 0)
+  const revenuePos = paidJobsToday
+    .filter((j: any) => j.payment_mode === 'pos')
+    .reduce((sum: number, j: any) => sum + (Number(j.total_price) || 0), 0)
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -64,7 +73,11 @@ export default async function AdminDashboardPage() {
           <StatCard label="Total Kiosks" value={totalKiosks.toString()} />
           <StatCard label="Online Now" value={onlineKiosks.toString()} />
           <StatCard label="Jobs Today" value={totalJobsToday.toString()} />
-          <StatCard label="Revenue Today" value={`₹ ${revenueToday.toFixed(2)}`} />
+          <StatCard
+            label="Revenue Today"
+            value={`₹ ${revenueToday.toFixed(2)}`}
+            sub={`Razorpay ₹ ${revenueRazorpay.toFixed(2)} · POS ₹ ${revenuePos.toFixed(2)}`}
+          />
         </div>
 
         {/* Fleet Status */}
@@ -85,13 +98,14 @@ export default async function AdminDashboardPage() {
                   <th className="px-6 py-4 font-medium text-zinc-400">Name & Location</th>
                   <th className="px-6 py-4 font-medium text-zinc-400">Status</th>
                   <th className="px-6 py-4 font-medium text-zinc-400">Platform</th>
+                  <th className="px-6 py-4 font-medium text-zinc-400">Hotspot</th>
                   <th className="px-6 py-4 font-medium text-zinc-400">Last Seen</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {kiosks?.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-zinc-500">
+                    <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
                       No kiosks added yet.
                     </td>
                   </tr>
@@ -117,6 +131,19 @@ export default async function AdminDashboardPage() {
                         <td className="px-6 py-4 text-zinc-400">
                           {kiosk.os_platform || '—'}
                         </td>
+                        <td className="px-6 py-4">
+                          {kiosk.settings?.hotspot_active === undefined || kiosk.settings?.hotspot_active === null ? (
+                            <span className="text-zinc-600">—</span>
+                          ) : kiosk.settings.hotspot_active ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Down
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-zinc-400">
                           {lastSeen ? lastSeen.toLocaleTimeString() : 'Never'}
                         </td>
@@ -133,11 +160,12 @@ export default async function AdminDashboardPage() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
       <p className="text-sm text-zinc-500">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
+      {sub && <p className="mt-1 text-xs text-zinc-500 tabular-nums">{sub}</p>}
     </div>
   )
 }
