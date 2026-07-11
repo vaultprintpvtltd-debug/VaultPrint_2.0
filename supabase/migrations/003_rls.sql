@@ -40,8 +40,12 @@ CREATE POLICY "Anyone can create a print job" ON print_jobs
 -- Updates must go through our backend Next.js API routes (which use service_role).
 
 -- 5. Audit Log table
--- Audit logs are strictly backend-only. No public access.
--- No policies created, meaning only service_role can read/write.
+-- Reads are strictly backend-only (no SELECT policy — service_role only).
+-- INSERT is allowed because the mobile /start page logs 'session_created'
+-- with the anon key (matches current app behavior; without this policy that
+-- audit event would be silently dropped).
+CREATE POLICY "Anyone can insert audit events" ON audit_log
+    FOR INSERT WITH CHECK (true);
 
 -- 6. Storage Bucket Policies (print-files)
 -- Users can upload files to the print-files bucket.
