@@ -36,6 +36,10 @@ export function useKioskRealtime(kioskId: string) {
         (payload) => {
           const newRecord = payload.new as Record<string, unknown> | undefined
 
+          // Mode 2 (POS) jobs are driven by their own screens/hook — the
+          // Mode 1 navigation below must never react to them.
+          if (newRecord && newRecord.payment_mode === 'pos') return
+
           if (newRecord) {
             if (['created', 'uploaded', 'customized', 'payment_pending'].includes(newRecord.status as string)) {
               // User has started the session, go to Step 2
