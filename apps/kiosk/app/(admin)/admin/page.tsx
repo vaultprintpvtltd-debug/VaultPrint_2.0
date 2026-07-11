@@ -27,19 +27,20 @@ export default async function AdminDashboardPage() {
     .select('id, total_price, status, payment_mode')
     .gte('created_at', startOfDay.toISOString())
 
+  type JobRow = { id: string; total_price: number | string | null; status: string; payment_mode: string | null }
   const totalJobsToday = jobsToday?.length || 0
-  const paidJobsToday = ((jobsToday as any[]) || []).filter((j: any) =>
+  const paidJobsToday = ((jobsToday as JobRow[]) || []).filter((j) =>
     ['paid', 'queued', 'printing', 'completed'].includes(j.status)
   )
   const revenueToday = paidJobsToday.reduce(
-    (sum: number, j: any) => sum + (Number(j.total_price) || 0), 0
+    (sum, j) => sum + (Number(j.total_price) || 0), 0
   )
   const revenueRazorpay = paidJobsToday
-    .filter((j: any) => j.payment_mode !== 'pos')
-    .reduce((sum: number, j: any) => sum + (Number(j.total_price) || 0), 0)
+    .filter((j) => j.payment_mode !== 'pos')
+    .reduce((sum, j) => sum + (Number(j.total_price) || 0), 0)
   const revenuePos = paidJobsToday
-    .filter((j: any) => j.payment_mode === 'pos')
-    .reduce((sum: number, j: any) => sum + (Number(j.total_price) || 0), 0)
+    .filter((j) => j.payment_mode === 'pos')
+    .reduce((sum, j) => sum + (Number(j.total_price) || 0), 0)
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">

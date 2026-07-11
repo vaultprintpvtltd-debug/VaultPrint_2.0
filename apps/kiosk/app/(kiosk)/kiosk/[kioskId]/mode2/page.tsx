@@ -38,12 +38,14 @@ export default function Mode2HotspotPage() {
   // ── One-time API key provisioning via ?key= ────────────────────────────
   useEffect(() => {
     provisionKioskApiKeyFromUrl()
-    setProvisioned(Boolean(getKioskApiKey()))
+    // localStorage is only readable after mount; defer the setState so the
+    // effect body stays free of synchronous state updates.
+    const ok = Boolean(getKioskApiKey())
+    queueMicrotask(() => setProvisioned(ok))
   }, [])
 
   // ── Request a fresh upload token ───────────────────────────────────────
   const requestToken = useCallback(async () => {
-    setError(null)
     const { ok, data } = await kioskApi<{ upload_url: string }>(
       kioskId,
       '/mode2/upload-token'
@@ -52,12 +54,14 @@ export default function Mode2HotspotPage() {
       setError(data.error || 'Could not start an upload session.')
       return
     }
+    setError(null)
     setUploadUrl(data.upload_url)
     setTimeLeft(TOKEN_TTL_SECONDS)
   }, [kioskId])
 
   useEffect(() => {
-    if (provisioned) requestToken()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async token fetch; all setState calls run after await, not synchronously
+    if (provisioned) void requestToken()
   }, [provisioned, requestToken])
 
   // ── Token countdown; auto-refresh at expiry ────────────────────────────

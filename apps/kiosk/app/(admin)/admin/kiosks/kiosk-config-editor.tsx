@@ -62,9 +62,9 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
   const [school, setSchool] = useState<SchoolFormState>(DEFAULT_SCHOOL_FORM)
 
   // ── Load current config ────────────────────────────────────────────────
+  // Only called from the mount effect; initial state already has
+  // loading=true / loadError=null, so no synchronous setState is needed here.
   const loadConfig = useCallback(async () => {
-    setLoading(true)
-    setLoadError(null)
     try {
       const res = await fetch(`/api/admin/kiosks/${kioskId}/config`)
       if (!res.ok) throw new Error('Failed to load config')
@@ -105,7 +105,8 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
   }, [kioskId])
 
   useEffect(() => {
-    loadConfig()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch-on-mount; all setState calls run after await, not synchronously
+    void loadConfig()
   }, [loadConfig])
 
   // ── Build the config object from form state ────────────────────────────

@@ -19,6 +19,22 @@ export default async function AdminJobsPage({
 
   const supabase = await createServerClient()
 
+  type JobRow = {
+    id: string
+    status: string
+    copies: number
+    total_pages: number | null
+    color_mode: string
+    duplex: boolean
+    total_price: number | string | null
+    payment_mode: string | null
+    pos_transaction_ref: string | null
+    pos_client_amount: number | string | null
+    created_at: string
+    kiosks: { name: string } | null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generated DB types don't include mode2 columns yet
   let query = (supabase as any)
     .from('print_jobs')
     .select(`
@@ -108,7 +124,7 @@ export default async function AdminJobsPage({
                   </td>
                 </tr>
               ) : (
-                (jobs as any[]).map((job: any) => {
+                (jobs as JobRow[]).map((job) => {
                   const isPos = job.payment_mode === 'pos'
                   const hasDiscrepancy =
                     isPos &&

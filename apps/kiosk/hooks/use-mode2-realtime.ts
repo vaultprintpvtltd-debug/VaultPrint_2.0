@@ -17,7 +17,10 @@ export function useMode2Realtime(
 ) {
   const supabaseRef = useRef(createBrowserClient())
   const onJobRef = useRef(onJob)
-  onJobRef.current = onJob
+
+  useEffect(() => {
+    onJobRef.current = onJob
+  }, [onJob])
 
   useEffect(() => {
     const supabase = supabaseRef.current
