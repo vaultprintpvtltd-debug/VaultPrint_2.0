@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase-project__list_extensions",
+      "mcp__supabase-project__apply_migration"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase-project",
+    "supabase"
+  ]
+}

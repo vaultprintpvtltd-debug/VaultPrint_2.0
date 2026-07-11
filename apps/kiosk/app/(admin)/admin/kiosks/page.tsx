@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { KioskConfigEditor } from './kiosk-config-editor'
 
 // ---------------------------------------------------------------------------
 // /admin/kiosks — Kiosk Management
@@ -43,6 +44,7 @@ export default function AdminKiosksPage() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [configKiosk, setConfigKiosk] = useState<{ id: string; name: string } | null>(null)
 
   // Newly created kiosk — shown once after creation
   const [newKioskResult, setNewKioskResult] = useState<{
@@ -376,6 +378,12 @@ export default function AdminKiosksPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
+                        onClick={() => setConfigKiosk({ id: kiosk.id, name: kiosk.name })}
+                        className="mr-1 rounded px-2 py-1 text-xs font-medium text-sky-400 transition hover:bg-sky-500/10 hover:text-sky-300"
+                      >
+                        Config
+                      </button>
+                      <button
                         onClick={() => handleDelete(kiosk.id)}
                         disabled={deletingId === kiosk.id}
                         className="rounded px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
@@ -388,6 +396,15 @@ export default function AdminKiosksPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* ── Kiosk Config Editor Modal ─────────────────────────────── */}
+        {configKiosk && (
+          <KioskConfigEditor
+            kioskId={configKiosk.id}
+            kioskName={configKiosk.name}
+            onClose={() => setConfigKiosk(null)}
+          />
         )}
       </main>
     </div>

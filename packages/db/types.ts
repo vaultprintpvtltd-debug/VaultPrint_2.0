@@ -16,6 +16,7 @@ export interface KioskRow {
   last_heartbeat: string | null
   api_key_hash: string
   settings: Json | null
+  config: Json
   created_at: string
 }
 
@@ -37,6 +38,10 @@ export interface PrintJobRow {
   total_price: number | null
   razorpay_order_id: string | null
   razorpay_payment_id: string | null
+  payment_mode: 'razorpay' | 'pos'
+  pos_transaction_ref: string | null
+  pos_card_last4: string | null
+  pos_client_amount: number | null
   otp_hash: string | null
   otp_expires_at: string | null
   otp_attempts: number
