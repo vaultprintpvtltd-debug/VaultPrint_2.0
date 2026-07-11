@@ -58,6 +58,16 @@ export interface PrintJobRow {
   updated_at: string
 }
 
+export interface PricingConfigRow {
+  id: string
+  color_mode: 'bw' | 'colour'
+  paper_size: string
+  duplex: boolean
+  price_per_page: number
+  is_active: boolean
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -70,6 +80,11 @@ export interface Database {
         Row: PrintJobRow
         Insert: Partial<PrintJobRow>
         Update: Partial<PrintJobRow>
+      }
+      pricing_config: {
+        Row: PricingConfigRow
+        Insert: Partial<PricingConfigRow>
+        Update: Partial<PricingConfigRow>
       }
     }
     Views: {
