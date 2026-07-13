@@ -65,7 +65,7 @@ export async function POST(
   const razorpay = createRazorpayClient()
   const amountInPaise = Math.round(job.total_price * 100)
 
-  let order: any
+  let order: { id: string | number }
   try {
     order = await razorpay.orders.create({
       amount: amountInPaise,
@@ -76,10 +76,10 @@ export async function POST(
         session_id: job.session_id,
       },
     })
-  } catch (err: any) {
+  } catch (err) {
     console.error('Razorpay order creation failed:', err)
     return NextResponse.json(
-      { error: 'Failed to create payment order', details: err.message },
+      { error: 'Failed to create payment order', details: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     )
   }

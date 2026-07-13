@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "mcp__supabase-project__list_extensions",
-      "mcp__supabase-project__apply_migration"
+      "mcp__supabase-project__apply_migration",
+      "Bash(node --experimental-strip-types -e \":*)",
+      "Bash(pnpm build:*)",
+      "Read(//f/VAULT_PRINT/**)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\(''''express''''\\);require\\(''''multer''''\\);console.log\\(''''receiver deps OK''''\\)\")",
+      "Bash(node -c file-receiver.js)",
+      "Bash(node --check file-receiver.js)",
+      "Bash(pnpm exec:*)",
+      "PowerShell(pnpm *)",
+      "PowerShell(cd apps/kiosk; npx eslint --format unix; echo \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(cd F:\\\\VAULT_PRINT\\\\vaultprint\\\\vaultprint\\\\apps\\\\kiosk; npx eslint \"app/\\(admin\\)/admin/kiosks/kiosk-config-editor.tsx\" \"app/\\(kiosk\\)/kiosk/[kioskId]/mode2/page.tsx\"; echo \"EXIT=$LASTEXITCODE\")",
+      "mcp__supabase-project__execute_sql",
+      "mcp__supabase-project__get_advisors",
+      "Bash(git -C F:/VAULT_PRINT/vaultprint/vaultprint ls-files)"
     ]
   },
   "enabledMcpjsonServers": [

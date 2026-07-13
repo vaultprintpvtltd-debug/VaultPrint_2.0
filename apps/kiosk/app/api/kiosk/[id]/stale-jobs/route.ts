@@ -45,7 +45,7 @@ export async function POST(
   const supabase = getAdminSupabase()
 
   // Find all jobs stuck in 'printing' for this kiosk older than stale_before
-  const { data: staleJobs, error: findError } = await (supabase as any)
+  const { data: staleJobs, error: findError } = await supabase
     .from('print_jobs')
     .select('id')
     .eq('kiosk_id', kioskId)
@@ -60,10 +60,10 @@ export async function POST(
     return NextResponse.json({ recovered: 0 })
   }
 
-  const staleIds = staleJobs.map((j: any) => j.id)
+  const staleIds = (staleJobs as { id: string }[]).map((j) => j.id)
 
   // Reset them all back to 'queued'
-  const { error: updateError } = await (supabase as any)
+  const { error: updateError } = await supabase
     .from('print_jobs')
     .update({ status: 'queued', error_message: null })
     .in('id', staleIds)
@@ -81,7 +81,7 @@ export async function POST(
     metadata: { stale_before },
   }))
 
-  await (supabase as any).from('audit_log').insert(auditRows)
+  await supabase.from('audit_log').insert(auditRows)
 
   return NextResponse.json({ recovered: staleIds.length })
 }

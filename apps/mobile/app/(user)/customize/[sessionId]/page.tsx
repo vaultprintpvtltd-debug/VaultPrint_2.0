@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { 
+import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
   Switch,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
@@ -51,43 +50,31 @@ export default function CustomizePage() {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
-  // Fetch job info on mount
-  useEffect(() => {
-    async function fetchJob() {
-      try {
-        const res = await fetch(`/api/jobs/${sessionId}/status`)
-        if (!res.ok) return
-        const data = await res.json()
-        setTotalPages(data.total_pages)
-        setFileName(data.file_name)
-        
-        if (!data.settings) {
-            await saveSettings('bw', 1, false, 'auto', 'all', true, 1, 'horizontal', false, 'standard', 'fit')
-        }
-        setLoaded(true)
-      } catch {
-        setError('Failed to load session')
-      }
-    }
-    fetchJob()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
-
+  // Save settings to the backend (which recalculates the price). Takes an
+  // explicit settings object so the callback does NOT close over each setting
+  // value — its identity stays stable (deps: sessionId, paperSize), which the
+  // React Compiler can memoize cleanly.
   const saveSettings = useCallback(
-    async (
-      cm = colorMode, cp = copies, dx = duplex, or = orientation, pp = pagesToPrint,
-      coll = isCollated, pps = pagesPerSheet, po = pageOrder, br = border, ql = quality, fs = fitScale
-    ) => {
+    async (settings: {
+      color_mode: string
+      copies: number
+      duplex: boolean
+      orientation: string
+      pages_to_print: string
+      is_collated: boolean
+      pages_per_sheet: number
+      page_order: string
+      border: boolean
+      quality: string
+      fit_scale: string
+    }) => {
       setSaving(true)
       setError(null)
       try {
         const res = await fetch(`/api/jobs/${sessionId}/settings`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            color_mode: cm, copies: cp, duplex: dx, orientation: or, pages_to_print: pp, paper_size: paperSize,
-            is_collated: coll, pages_per_sheet: pps, page_order: po, border: br, quality: ql, fit_scale: fs
-          }),
+          body: JSON.stringify({ ...settings, paper_size: paperSize }),
         })
 
         if (!res.ok) {
@@ -108,14 +95,43 @@ export default function CustomizePage() {
         setSaving(false)
       }
     },
-    [sessionId, colorMode, copies, duplex, orientation, pagesToPrint, paperSize, isCollated, pagesPerSheet, pageOrder, border, quality, fitScale]
+    [sessionId, paperSize]
   )
 
-  // Debounced save
+  // Fetch job info on mount
+  useEffect(() => {
+    async function fetchJob() {
+      try {
+        const res = await fetch(`/api/jobs/${sessionId}/status`)
+        if (!res.ok) return
+        const data = await res.json()
+        setTotalPages(data.total_pages)
+        setFileName(data.file_name)
+
+        if (!data.settings) {
+          await saveSettings({
+            color_mode: 'bw', copies: 1, duplex: false, orientation: 'auto',
+            pages_to_print: 'all', is_collated: true, pages_per_sheet: 1,
+            page_order: 'horizontal', border: false, quality: 'standard', fit_scale: 'fit',
+          })
+        }
+        setLoaded(true)
+      } catch {
+        setError('Failed to load session')
+      }
+    }
+    fetchJob()
+  }, [sessionId, saveSettings])
+
+  // Debounced save whenever a setting changes (after initial load)
   useEffect(() => {
     if (!loaded) return
     const timer = setTimeout(() => {
-      saveSettings()
+      saveSettings({
+        color_mode: colorMode, copies, duplex, orientation, pages_to_print: pagesToPrint,
+        is_collated: isCollated, pages_per_sheet: pagesPerSheet, page_order: pageOrder,
+        border, quality, fit_scale: fitScale,
+      })
     }, 400)
     return () => clearTimeout(timer)
   }, [colorMode, copies, duplex, orientation, pagesToPrint, isCollated, pagesPerSheet, pageOrder, border, quality, fitScale, loaded, saveSettings])

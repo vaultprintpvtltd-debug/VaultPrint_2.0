@@ -9,20 +9,20 @@ export default async function AdminDashboardPage() {
   const supabase = await createServerClient()
 
   // Fetch Kiosks
-  const { data: kiosks } = await (supabase as any)
+  const { data: kiosks } = await supabase
     .from('kiosks')
     .select('id, name, location, last_heartbeat, status, os_platform, settings')
     .order('created_at', { ascending: false })
 
   // Stats
   const totalKiosks = kiosks?.length || 0
-  const onlineKiosks = (kiosks as any[])?.filter((k: any) => k.status === 'idle' || k.status === 'printing').length || 0
+  const onlineKiosks = kiosks?.filter((k) => k.status === 'idle' || k.status === 'printing').length || 0
 
   // Today's jobs
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
-  
-  const { data: jobsToday } = await (supabase as any)
+
+  const { data: jobsToday } = await supabase
     .from('print_jobs')
     .select('id, total_price, status, payment_mode')
     .gte('created_at', startOfDay.toISOString())
@@ -104,17 +104,18 @@ export default async function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
-                {kiosks?.length === 0 ? (
+                {!kiosks || kiosks.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
                       No kiosks added yet.
                     </td>
                   </tr>
                 ) : (
-                  (kiosks as any[]).map((kiosk: any) => {
+                  kiosks.map((kiosk) => {
                     const lastSeen = kiosk.last_heartbeat ? new Date(kiosk.last_heartbeat) : null
                     const isOffline = lastSeen ? (new Date().getTime() - lastSeen.getTime() > 60000) : true
-                    
+                    const hotspotActive = (kiosk.settings as { hotspot_active?: boolean } | null)?.hotspot_active
+
                     return (
                       <tr key={kiosk.id} className="transition hover:bg-zinc-800/50">
                         <td className="px-6 py-4">
@@ -133,9 +134,9 @@ export default async function AdminDashboardPage() {
                           {kiosk.os_platform || '—'}
                         </td>
                         <td className="px-6 py-4">
-                          {kiosk.settings?.hotspot_active === undefined || kiosk.settings?.hotspot_active === null ? (
+                          {hotspotActive === undefined || hotspotActive === null ? (
                             <span className="text-zinc-600">—</span>
-                          ) : kiosk.settings.hotspot_active ? (
+                          ) : hotspotActive ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-400">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
                             </span>

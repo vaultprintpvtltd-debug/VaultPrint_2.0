@@ -38,7 +38,7 @@ export async function PATCH(
 
   const { status, error_message } = body
 
-  if (!['completed', 'failed'].includes(status || '')) {
+  if (status !== 'completed' && status !== 'failed') {
     return NextResponse.json(
       { error: 'Status must be completed or failed' },
       { status: 400 }
@@ -67,7 +67,11 @@ export async function PATCH(
   }
 
   // 2. Update job
-  const updatePayload: any = {
+  const updatePayload: {
+    status: string
+    completed_at: string | null
+    error_message?: string
+  } = {
     status,
     completed_at: status === 'completed' ? new Date().toISOString() : null,
   }

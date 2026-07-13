@@ -6,7 +6,14 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface KioskRow {
+// NOTE: these are `type` aliases, not `interface`s, on purpose. supabase-js /
+// postgrest-js constrain each table's Row to `Record<string, unknown>`, which
+// a TypeScript `interface` does NOT satisfy (interfaces have no implicit index
+// signature). Declaring them as `type` object literals makes the Database type
+// satisfy `GenericSchema`, so query results are typed correctly instead of
+// collapsing to `never`.
+
+export type KioskRow = {
   id: string
   name: string
   location: string | null
@@ -20,7 +27,7 @@ export interface KioskRow {
   created_at: string
 }
 
-export interface PrintJobRow {
+export type PrintJobRow = {
   id: string
   session_id: string
   kiosk_id: string
@@ -58,7 +65,7 @@ export interface PrintJobRow {
   updated_at: string
 }
 
-export interface PricingConfigRow {
+export type PricingConfigRow = {
   id: string
   color_mode: 'bw' | 'colour'
   paper_size: string
@@ -68,23 +75,56 @@ export interface PricingConfigRow {
   updated_at: string
 }
 
-export interface Database {
+export type AuditLogRow = {
+  id: string
+  job_id: string | null
+  kiosk_id: string | null
+  event: string
+  actor: string
+  metadata: Json
+  created_at: string
+}
+
+export type Mode2UploadTokenRow = {
+  token: string
+  kiosk_id: string
+  expires_at: string
+  used_at: string | null
+  created_at: string
+}
+
+export type Database = {
   public: {
     Tables: {
       kiosks: {
         Row: KioskRow
         Insert: Partial<KioskRow>
         Update: Partial<KioskRow>
+        Relationships: []
       }
       print_jobs: {
         Row: PrintJobRow
         Insert: Partial<PrintJobRow>
         Update: Partial<PrintJobRow>
+        Relationships: []
       }
       pricing_config: {
         Row: PricingConfigRow
         Insert: Partial<PricingConfigRow>
         Update: Partial<PricingConfigRow>
+        Relationships: []
+      }
+      audit_log: {
+        Row: AuditLogRow
+        Insert: Partial<AuditLogRow>
+        Update: Partial<AuditLogRow>
+        Relationships: []
+      }
+      mode2_upload_tokens: {
+        Row: Mode2UploadTokenRow
+        Insert: Partial<Mode2UploadTokenRow>
+        Update: Partial<Mode2UploadTokenRow>
+        Relationships: []
       }
     }
     Views: {
@@ -94,6 +134,9 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
       [_ in never]: never
     }
   }

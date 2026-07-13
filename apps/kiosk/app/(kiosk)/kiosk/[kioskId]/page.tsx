@@ -14,7 +14,9 @@ export default function KioskQRPage() {
   const router = useRouter()
   const kioskId = params.kioskId
 
-  const [qrTimestamp, setQrTimestamp] = useState(Date.now())
+  // Cache-buster for the QR: a pure counter (not Date.now(), which is impure
+  // during render). Incremented once per 5-minute refresh cycle.
+  const [refreshTick, setRefreshTick] = useState(0)
   const [timeLeft, setTimeLeft] = useState(300)
 
   // ── Kiosk Configuration Layer (PRD C1) ─────────────────────────────────
@@ -33,7 +35,7 @@ export default function KioskQRPage() {
     const qrInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          setQrTimestamp(Date.now())
+          setRefreshTick((n) => n + 1)
           return 300
         }
         return prev - 1
@@ -43,7 +45,7 @@ export default function KioskQRPage() {
     return () => clearInterval(qrInterval)
   }, [])
 
-  const qrUrl = `${APP_DOMAIN}/start?k=${kioskId}&t=${qrTimestamp}`
+  const qrUrl = `${APP_DOMAIN}/start?k=${kioskId}&t=${refreshTick}`
 
   // ── Mode selector (only ever rendered when 2+ modes are enabled) ───────
   const showSelector =

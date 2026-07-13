@@ -20,14 +20,18 @@ export default function OTPPage() {
   const [copied, setCopied] = useState(false)
   const [status, setStatus] = useState<string>('queued')
 
-  // Load OTP from sessionStorage
+  // Load OTP from sessionStorage (written by the payment page before it
+  // navigates here). This is browser-only state that is unavailable during
+  // SSR, so it must be hydrated in a mount effect rather than a render-time
+  // initializer (which would cause a hydration mismatch).
   useEffect(() => {
     const stored = sessionStorage.getItem(`vp_otp_${sessionId}`)
-    if (stored) {
-      const { otp: storedOtp, expires_at } = JSON.parse(stored)
-      setOtp(storedOtp)
-      setExpiresAt(expires_at)
-    }
+    if (!stored) return
+    const { otp: storedOtp, expires_at } = JSON.parse(stored)
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrating browser-only sessionStorage on mount */
+    setOtp(storedOtp)
+    setExpiresAt(expires_at)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [sessionId])
 
   // Countdown timer

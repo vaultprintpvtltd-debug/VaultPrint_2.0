@@ -52,7 +52,10 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse the webhook payload
-  let payload: any
+  let payload: {
+    event?: string
+    payload?: { payment?: { entity?: { id?: string; order_id?: string } } }
+  }
   try {
     payload = JSON.parse(rawBody)
   } catch {

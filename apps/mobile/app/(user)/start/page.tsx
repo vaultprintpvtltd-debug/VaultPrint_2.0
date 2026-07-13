@@ -43,7 +43,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   const supabase = await createServerClient()
 
   // 1. Validate kiosk exists and is not offline
-  const { data: kiosk, error: kioskError } = await (supabase as any)
+  const { data: kiosk, error: kioskError } = await supabase
     .from('kiosks')
     .select()
     .eq('id', kioskId)
@@ -58,7 +58,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   }
 
   // 2. Create print_jobs session
-  const { data: job, error: jobError } = await (supabase as any)
+  const { data: job, error: jobError } = await supabase
     .from('print_jobs')
     .insert({ kiosk_id: kiosk.id, status: 'created' })
     .select()
@@ -69,7 +69,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   }
 
   // 3. Log the event
-  await (supabase as any).from('audit_log').insert({
+  await supabase.from('audit_log').insert({
     job_id: job.id,
     kiosk_id: kiosk.id,
     event: 'session_created',

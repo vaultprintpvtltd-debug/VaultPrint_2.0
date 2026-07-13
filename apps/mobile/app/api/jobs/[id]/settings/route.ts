@@ -49,7 +49,7 @@ export async function PATCH(
 ) {
   const { id: sessionId } = await params
 
-  let body: Record<string, any>
+  let body: Record<string, unknown>
   try {
     body = await request.json()
   } catch {
@@ -84,20 +84,21 @@ export async function PATCH(
   }
 
   // 2. Validate and extract settings
-  const copies = Math.max(1, Math.min(50, parseInt(body.copies, 10) || 1))
-  const color_mode = ['bw', 'colour'].includes(body.color_mode) ? body.color_mode : 'bw'
+  const copies = Math.max(1, Math.min(50, parseInt(String(body.copies), 10) || 1))
+  const color_mode = ['bw', 'colour'].includes(String(body.color_mode)) ? (body.color_mode as string) : 'bw'
   const duplex = body.duplex === true
-  const orientation = ['portrait', 'landscape', 'auto'].includes(body.orientation) ? body.orientation : 'auto'
+  const orientation = ['portrait', 'landscape', 'auto'].includes(String(body.orientation)) ? (body.orientation as string) : 'auto'
   const pages_to_print = typeof body.pages_to_print === 'string' ? body.pages_to_print.trim() : 'all'
   const paper_size = 'A4' // Always A4 for v1
-  
+
   // Advanced settings
   const is_collated = typeof body.is_collated === 'boolean' ? body.is_collated : true
-  const pages_per_sheet = [1, 2, 4, 6, 9, 16].includes(parseInt(body.pages_per_sheet, 10)) ? parseInt(body.pages_per_sheet, 10) : 1
-  const page_order = ['horizontal', 'horizontal-reverse', 'vertical', 'vertical-reverse'].includes(body.page_order) ? body.page_order : 'horizontal'
+  const pagesPerSheetParsed = parseInt(String(body.pages_per_sheet), 10)
+  const pages_per_sheet = [1, 2, 4, 6, 9, 16].includes(pagesPerSheetParsed) ? pagesPerSheetParsed : 1
+  const page_order = ['horizontal', 'horizontal-reverse', 'vertical', 'vertical-reverse'].includes(String(body.page_order)) ? (body.page_order as string) : 'horizontal'
   const border = body.border === true
-  const quality = ['draft', 'standard', 'high'].includes(body.quality) ? body.quality : 'standard'
-  const fit_scale = ['fit', 'actual', 'shrink'].includes(body.fit_scale) ? body.fit_scale : 'fit'
+  const quality = ['draft', 'standard', 'high'].includes(String(body.quality)) ? (body.quality as string) : 'standard'
+  const fit_scale = ['fit', 'actual', 'shrink'].includes(String(body.fit_scale)) ? (body.fit_scale as string) : 'fit'
 
   // 3. Look up pricing
   const { data: pricing, error: pricingError } = await supabase

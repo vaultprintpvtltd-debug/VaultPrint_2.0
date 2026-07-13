@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { KioskConfigEditor } from './kiosk-config-editor'
 
@@ -52,23 +52,25 @@ export default function AdminKiosksPage() {
     api_key: string
   } | null>(null)
 
-  // ── Fetch all kiosks ───────────────────────────────────────────────────
-  const fetchKiosks = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/kiosks')
-      if (!res.ok) throw new Error('Failed to fetch kiosks')
-      const data = await res.json()
-      setKiosks(data.kiosks)
-      setLoading(false)
-    } catch {
-      setError('Failed to load kiosks.')
-      setLoading(false)
-    }
-  }, [])
+  // Bump to re-fetch the kiosk list (after create/delete).
+  const [refreshKey, setRefreshKey] = useState(0)
 
+  // ── Fetch all kiosks (re-runs whenever refreshKey changes) ──────────────
   useEffect(() => {
-    fetchKiosks()
-  }, [fetchKiosks])
+    const load = async () => {
+      try {
+        const res = await fetch('/api/admin/kiosks')
+        if (!res.ok) throw new Error('Failed to fetch kiosks')
+        const data = await res.json()
+        setKiosks(data.kiosks)
+        setLoading(false)
+      } catch {
+        setError('Failed to load kiosks.')
+        setLoading(false)
+      }
+    }
+    load()
+  }, [refreshKey])
 
   // ── Handle form submission ─────────────────────────────────────────────
   async function handleCreate(e: React.FormEvent) {
@@ -101,7 +103,7 @@ export default function AdminKiosksPage() {
       setSubmitting(false)
 
       // Refresh the kiosk list
-      fetchKiosks()
+      setRefreshKey((k) => k + 1)
     } catch {
       setFormError('An unexpected error occurred.')
       setSubmitting(false)
@@ -127,7 +129,7 @@ export default function AdminKiosksPage() {
       }
 
       // Refresh the kiosk list
-      fetchKiosks()
+      setRefreshKey((k) => k + 1)
     } catch {
       alert('An unexpected error occurred.')
     } finally {
@@ -138,7 +140,7 @@ export default function AdminKiosksPage() {
   // ── Format helper ──────────────────────────────────────────────────────
   function formatHeartbeat(ts: string | null): string {
     if (!ts) return 'Never'
-    const diff = Date.now() - new Date(ts).getTime()
+    const diff = new Date().getTime() - new Date(ts).getTime()
     const seconds = Math.floor(diff / 1000)
     if (seconds < 60) return `${seconds}s ago`
     const minutes = Math.floor(seconds / 60)

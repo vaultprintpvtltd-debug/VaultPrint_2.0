@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { createBrowserClient } from '@vaultprint/db'
+import { createBrowserClient, type PricingConfigRow } from '@vaultprint/db'
 
 // ---------------------------------------------------------------------------
 // /admin/pricing — Pricing Management
 // ---------------------------------------------------------------------------
 
 export default function AdminPricingPage() {
-  const [pricing, setPricing] = useState<any[]>([])
+  const [pricing, setPricing] = useState<PricingConfigRow[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const supabase = createBrowserClient()

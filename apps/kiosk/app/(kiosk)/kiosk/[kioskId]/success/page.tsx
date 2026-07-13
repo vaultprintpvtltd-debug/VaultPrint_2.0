@@ -35,15 +35,15 @@ function SuccessContent() {
 
     const fetchJob = async () => {
       const { data } = await supabase.from('print_jobs').select('total_pages, copies, color_mode, status').eq('id', jobId).single()
-      const jobData = data as any
-      if (jobData) {
+      if (data) {
         setSummary({
-          pages: jobData.total_pages || 1,
-          copies: jobData.copies || 1,
-          color_mode: jobData.color_mode || 'bw',
-          status: jobData.status,
+          pages: data.total_pages || 1,
+          copies: data.copies || 1,
+          color_mode: data.color_mode || 'bw',
+          status: data.status,
         })
-        setStatus(jobData.status)
+        setStatus(data.status)
+        if (data.status === 'completed') setCountdown((c) => c ?? 5)
       }
     }
     fetchJob()
@@ -51,36 +51,35 @@ function SuccessContent() {
     // Listen for changes
     const channel = supabase.channel(`job-${jobId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'print_jobs', filter: `id=eq.${jobId}` }, (payload) => {
-        const newStatus = (payload.new as any).status
+        const newStatus = (payload.new as { status: string }).status
         setStatus(newStatus)
+        if (newStatus === 'completed') setCountdown((c) => c ?? 5)
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [jobId])
 
-  // 2. GSAP Animation & Countdown Trigger
+  // 2. GSAP completion animation (pure side-effect — the countdown is started
+  // where the status becomes 'completed', not here).
   useEffect(() => {
-    if (isCompleted && countdown === null) {
-      setCountdown(5)
+    if (!isCompleted) return
 
-      // Run GSAP animation
-      const tl = gsap.timeline()
-      
-      // Circle draw
-      if (circleRef.current) {
-         tl.fromTo(circleRef.current, { strokeDasharray: 200, strokeDashoffset: 200 }, { strokeDashoffset: 0, duration: 0.6, ease: 'power2.out' })
-      }
-      // Checkmark draw
-      if (pathRef.current) {
-         tl.fromTo(pathRef.current, { strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDashoffset: 0, duration: 0.4, ease: 'power2.out' }, '-=0.2')
-      }
-      // Bounce scale
-      if (checkmarkRef.current) {
-         tl.to(checkmarkRef.current, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 }, '-=0.2')
-      }
+    const tl = gsap.timeline()
+
+    // Circle draw
+    if (circleRef.current) {
+       tl.fromTo(circleRef.current, { strokeDasharray: 200, strokeDashoffset: 200 }, { strokeDashoffset: 0, duration: 0.6, ease: 'power2.out' })
     }
-  }, [isCompleted, countdown])
+    // Checkmark draw
+    if (pathRef.current) {
+       tl.fromTo(pathRef.current, { strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDashoffset: 0, duration: 0.4, ease: 'power2.out' }, '-=0.2')
+    }
+    // Bounce scale
+    if (checkmarkRef.current) {
+       tl.to(checkmarkRef.current, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 }, '-=0.2')
+    }
+  }, [isCompleted])
 
   // 3. Handle Countdown
   useEffect(() => {

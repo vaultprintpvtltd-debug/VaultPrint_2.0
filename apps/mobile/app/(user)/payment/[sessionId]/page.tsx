@@ -2,16 +2,33 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Image from 'next/image'
 
 // ---------------------------------------------------------------------------
 // /payment/[sessionId] — Payment Page
 // ---------------------------------------------------------------------------
 
+interface RazorpayInstance {
+  open: () => void
+}
+interface RazorpayConstructor {
+  new (options: Record<string, unknown>): RazorpayInstance
+}
 declare global {
   interface Window {
-    Razorpay: any
+    Razorpay: RazorpayConstructor
   }
+}
+
+interface JobDetails {
+  file_name: string | null
+  total_pages: number | null
+  color_mode: string
+  copies: number
+  orientation: string
+  quality: string | null
+  price_per_page: number
+  billable_pages: number
+  total_price: number
 }
 
 export default function PaymentPage() {
@@ -19,7 +36,7 @@ export default function PaymentPage() {
   const router = useRouter()
   const sessionId = params.sessionId
 
-  const [job, setJob] = useState<any>(null)
+  const [job, setJob] = useState<JobDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +95,11 @@ export default function PaymentPage() {
         name: 'VaultPrint',
         description: 'Document Printing',
         order_id: razorpay_order_id,
-        handler: async function (response: any) {
+        handler: async function (response: {
+          razorpay_order_id: string
+          razorpay_payment_id: string
+          razorpay_signature: string
+        }) {
           // 3. Verify payment
           try {
             const verifyRes = await fetch(`/api/jobs/${sessionId}/payment/verify`, {
@@ -99,8 +120,8 @@ export default function PaymentPage() {
             const { otp, expires_at } = await verifyRes.json()
             sessionStorage.setItem(`vp_otp_${sessionId}`, JSON.stringify({ otp, expires_at }))
             router.push(`/otp/${sessionId}`)
-          } catch (err: any) {
-            setError(err.message)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Payment verification failed')
             setPaying(false)
           }
         },
@@ -112,8 +133,8 @@ export default function PaymentPage() {
 
       const rzp = new window.Razorpay(options)
       rzp.open()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed')
       setPaying(false)
     }
   }

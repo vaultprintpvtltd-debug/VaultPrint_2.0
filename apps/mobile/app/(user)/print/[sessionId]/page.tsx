@@ -96,10 +96,10 @@ export default function PrintUploadPage() {
       setTotalPages(confirmData.total_pages)
       setStatus('success')
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Upload error:', err)
       setStatus('error')
-      setErrorMsg(err.message || 'An unexpected error occurred')
+      setErrorMsg(err instanceof Error ? err.message : 'An unexpected error occurred')
     }
   }
 
@@ -119,7 +119,7 @@ export default function PrintUploadPage() {
           {/* Progress Line */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-white/50 rounded-full z-0"></div>
           
-          {steps.map((step, idx) => (
+          {steps.map((step) => (
             <div key={step.id} className="relative z-10 flex flex-col items-center gap-2">
               <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-colors ${
                 step.active 

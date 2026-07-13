@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('pricing_config')
     .update({ price_per_page })
     .eq('id', id)

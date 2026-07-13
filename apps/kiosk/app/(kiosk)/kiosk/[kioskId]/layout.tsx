@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { createBrowserClient } from '@vaultprint/db'
@@ -22,32 +22,31 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
   const [error, setError] = useState<string | null>(null)
 
   // ── Fetch kiosk info from Supabase ─────────────────────────────────────
-  const fetchKioskInfo = useCallback(async () => {
-    try {
-      const supabase = createBrowserClient()
-      const { data, error: fetchError } = await supabase
-        .from('kiosks')
-        .select('name, location, status')
-        .eq('id', kioskId)
-        .single()
-
-      if (fetchError || !data) {
-        setError('Kiosk not found. Please check the kiosk ID.')
-        setLoading(false)
-        return
-      }
-
-      setKioskInfo(data)
-      setLoading(false)
-    } catch {
-      setError('Failed to connect to server.')
-      setLoading(false)
-    }
-  }, [kioskId])
-
   useEffect(() => {
+    const fetchKioskInfo = async () => {
+      try {
+        const supabase = createBrowserClient()
+        const { data, error: fetchError } = await supabase
+          .from('kiosks')
+          .select('name, location, status')
+          .eq('id', kioskId)
+          .single()
+
+        if (fetchError || !data) {
+          setError('Kiosk not found. Please check the kiosk ID.')
+          setLoading(false)
+          return
+        }
+
+        setKioskInfo(data)
+        setLoading(false)
+      } catch {
+        setError('Failed to connect to server.')
+        setLoading(false)
+      }
+    }
     fetchKioskInfo()
-  }, [fetchKioskInfo])
+  }, [kioskId])
 
   // ── Live clock (updates every second) ──────────────────────────────────
   useEffect(() => {
