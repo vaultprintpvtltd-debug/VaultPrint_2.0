@@ -110,7 +110,7 @@ export default function KioskQRPage() {
         </div>
         <button
           onClick={() => router.push(`/kiosk/${kioskId}/enter-otp`)}
-          className="rounded-full border border-teal-400/40 bg-teal-400/10 px-5 py-2.5 lg:py-3 text-sm lg:text-base font-semibold text-teal-200 transition hover:bg-teal-400/20 active:scale-95"
+          className="rounded-full border border-teal-400/40 bg-[#0f2e2c] px-5 py-2.5 lg:py-3 text-sm lg:text-base font-semibold text-teal-200 transition hover:bg-[#14403d] active:scale-95"
         >
           Already paid? Enter your code
         </button>
