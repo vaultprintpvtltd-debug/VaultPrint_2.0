@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,30 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Payment confirmed by the SERVER with Razorpay (no browser callback
+  // needed): mobile UPI often leaves the page, losing Razorpay's handler.
+  const recoverCode = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/jobs/${sessionId}/payment/recover`, { method: 'POST' })
+      if (!res.ok) return false
+      const data = await res.json()
+      if (!data.otp) return false
+      sessionStorage.setItem(`vp_otp_${sessionId}`, JSON.stringify({ otp: data.otp, expires_at: data.expires_at }))
+      router.push(`/otp/${sessionId}`)
+      return true
+    } catch {
+      return false
+    }
+  }, [sessionId, router])
+
+  // Returning from a UPI app / reopened page: already paid? → show the code
+  useEffect(() => {
+    recoverCode()
+    const onVisible = () => { if (document.visibilityState === 'visible') recoverCode() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [recoverCode])
 
   // Load Razorpay script
   useEffect(() => {
@@ -121,12 +145,18 @@ export default function PaymentPage() {
             sessionStorage.setItem(`vp_otp_${sessionId}`, JSON.stringify({ otp, expires_at }))
             router.push(`/otp/${sessionId}`)
           } catch (err) {
+            // Signature check failed or the request didn't arrive — ask
+            // Razorpay directly before showing an error
+            if (await recoverCode()) return
             setError(err instanceof Error ? err.message : 'Payment verification failed')
             setPaying(false)
           }
         },
         modal: {
-          ondismiss: () => setPaying(false),
+          // Closed after paying in a UPI app? Check before giving up
+          ondismiss: async () => {
+            if (!(await recoverCode())) setPaying(false)
+          },
         },
         theme: { color: '#3B5BDB' },
       }

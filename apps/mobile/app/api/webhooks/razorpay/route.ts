@@ -104,6 +104,9 @@ export async function POST(request: NextRequest) {
     .from('print_jobs')
     .update({
       razorpay_payment_id: paymentId,
+      // Window for the customer to collect a code via /verify or /recover;
+      // after it the expiry cron expires the job (flagged refund_due).
+      otp_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       status: 'paid',
     })
     .eq('id', job.id)
