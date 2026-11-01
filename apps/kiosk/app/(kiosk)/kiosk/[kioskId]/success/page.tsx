@@ -108,7 +108,7 @@ function SuccessContent() {
 
   return (
     <>
-      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-6 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl w-full max-w-[400px] lg:max-w-none mx-auto flex flex-col items-center justify-center transition-all duration-500 scale-100 opacity-100 aspect-square relative overflow-hidden">
+      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3dvh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl kiosk-panel mx-auto flex flex-col items-center justify-center transition-all duration-500 scale-100 opacity-100 relative overflow-hidden">
         
         {/* Glow behind the status */}
         <div className={`absolute inset-0 rounded-3xl lg:rounded-[2.5rem] transition-colors duration-700 blur-3xl opacity-20 ${isCompleted ? 'bg-emerald-500' : 'bg-teal-400'}`} />
@@ -179,7 +179,7 @@ function SuccessContent() {
         </div>
       </div>
 
-      <div className="mt-6 lg:mt-8 flex flex-col items-center text-center transition-opacity duration-500 delay-200">
+      <div className="mt-[2dvh] shrink-0 flex flex-col items-center text-center transition-opacity duration-500 delay-200">
         <div className={`flex items-center gap-2 text-zinc-300 text-sm lg:text-base bg-black/30 border rounded-full px-5 lg:px-6 py-2.5 lg:py-3 shadow-inner backdrop-blur-md transition-colors ${isCompleted ? 'border-emerald-500/30' : 'border-teal-500/30'}`}>
           <div className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full animate-pulse ${isCompleted ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]'}`} />
           <span className={`tracking-wide ${isCompleted ? 'text-emerald-300' : 'text-teal-300'}`}>

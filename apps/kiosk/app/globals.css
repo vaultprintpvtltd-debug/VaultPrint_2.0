@@ -26,3 +26,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Kiosk screen right-hand panel: a square as large as the free height allows
+   (the kiosk layout is sized to exactly one screen — nothing may scroll). */
+@utility kiosk-panel {
+  flex: 1 1 0%;
+  min-height: 0;
+  /* aspect-ratio boxes default to a content-sized minimum; let them shrink */
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+}

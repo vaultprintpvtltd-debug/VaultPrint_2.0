@@ -124,29 +124,29 @@ export default function KioskEnterOTPPage() {
         }
       `}</style>
       
-      <div className={`rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-6 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl w-full max-w-[400px] lg:max-w-none aspect-square mx-auto flex flex-col items-center justify-center transition-all duration-500 ${isShaking ? 'animate-shake' : ''}`}>
+      <div className={`rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3dvh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl min-h-0 flex-1 w-full max-w-[440px] mx-auto flex flex-col items-center transition-all duration-500 ${isShaking ? 'animate-shake' : ''}`}>
         
         {/* Job Context Strip */}
-        <div className="w-full bg-black/30 rounded-2xl p-3 mb-3 border border-white/5 flex items-center justify-center gap-3 shadow-inner">
+        <div className="w-full shrink-0 bg-black/30 rounded-2xl px-3 py-[1.2dvh] mb-[1.2dvh] border [@media(max-height:660px)]:hidden border-white/5 flex items-center justify-center gap-3 shadow-inner">
           <div className="h-2 w-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
           <span className="text-zinc-300 font-medium tracking-wide text-sm">
             {submitting ? 'Checking your code…' : 'Paid on your phone? Release your print here'}
           </span>
         </div>
 
-        <div className="text-center mb-3">
+        <div className="text-center shrink-0 mb-[1.2dvh]">
           <h3 className="text-lg lg:text-xl font-bold text-white mb-1 tracking-wide">Enter the 6-digit code</h3>
-          <p className="text-xs lg:text-sm text-zinc-400 leading-relaxed">
+          <p className="text-xs lg:text-sm text-zinc-400 leading-relaxed [@media(max-height:660px)]:hidden">
             The code is shown on your phone after payment.
           </p>
         </div>
         
         {/* OTP Input Boxes */}
-        <div className="flex items-center justify-center gap-2 mb-1">
+        <div className="flex shrink-0 items-center justify-center gap-2 mb-1">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className={`w-10 h-12 lg:w-12 lg:h-14 flex items-center justify-center rounded-xl border-2 transition-all ${
+              className={`w-[clamp(32px,6dvh,48px)] h-[clamp(36px,7dvh,56px)] flex items-center justify-center rounded-xl border-2 transition-all ${
                 i < otp.length 
                   ? 'border-teal-400 bg-teal-400/10 text-white shadow-[0_0_10px_rgba(45,212,191,0.2)]' 
                   : 'border-white/10 bg-black/40 text-transparent'
@@ -160,7 +160,7 @@ export default function KioskEnterOTPPage() {
         </div>
 
         {/* Warning Message */}
-        <div className="min-h-5 mb-2 flex items-center justify-center w-full">
+        <div className="min-h-5 shrink-0 mb-[1dvh] flex items-center justify-center w-full">
           {message && (
             <span className="text-rose-300 text-sm font-semibold tracking-wide text-center bg-rose-500/10 px-4 py-1.5 rounded-2xl border border-rose-500/20">
               {message}
@@ -169,19 +169,19 @@ export default function KioskEnterOTPPage() {
         </div>
 
         {/* Numpad */}
-        <div className="grid grid-cols-3 gap-2 w-full">
+        <div className="grid min-h-0 flex-1 grid-cols-3 grid-rows-4 gap-[1dvh] w-full">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
             <button
               key={num}
               onClick={() => handleKeyPress(num.toString())}
-              className="h-12 lg:h-14 rounded-2xl bg-white/5 border border-white/10 text-xl lg:text-2xl font-jakarta text-white font-semibold hover:bg-white/10 active:bg-white/20 active:scale-95 transition-all backdrop-blur-sm"
+              className="h-full min-h-0 rounded-2xl bg-white/5 border border-white/10 text-xl lg:text-2xl font-jakarta text-white font-semibold hover:bg-white/10 active:bg-white/20 active:scale-95 transition-all backdrop-blur-sm"
             >
               {num}
             </button>
           ))}
           <button
             onClick={() => handleKeyPress('del')}
-            className="h-12 lg:h-14 rounded-2xl bg-white/5 border border-white/10 text-xl font-jakarta text-zinc-400 font-semibold hover:bg-white/10 active:bg-rose-500/20 active:text-rose-400 active:scale-95 transition-all backdrop-blur-sm flex items-center justify-center group"
+            className="h-full min-h-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-jakarta text-zinc-400 font-semibold hover:bg-white/10 active:bg-rose-500/20 active:text-rose-400 active:scale-95 transition-all backdrop-blur-sm flex items-center justify-center group"
           >
             <svg className="w-6 h-6 lg:w-7 lg:h-7 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
@@ -189,14 +189,14 @@ export default function KioskEnterOTPPage() {
           </button>
           <button
             onClick={() => handleKeyPress('0')}
-            className="h-12 lg:h-14 rounded-2xl bg-white/5 border border-white/10 text-xl lg:text-2xl font-jakarta text-white font-semibold hover:bg-white/10 active:bg-white/20 active:scale-95 transition-all backdrop-blur-sm"
+            className="h-full min-h-0 rounded-2xl bg-white/5 border border-white/10 text-xl lg:text-2xl font-jakarta text-white font-semibold hover:bg-white/10 active:bg-white/20 active:scale-95 transition-all backdrop-blur-sm"
           >
             0
           </button>
           <button
             onClick={() => handleKeyPress('enter')}
             disabled={otp.length !== 6 || submitting}
-            className={`h-12 lg:h-14 rounded-2xl border text-sm font-bold uppercase tracking-widest transition-all backdrop-blur-sm flex items-center justify-center ${
+            className={`h-full min-h-0 rounded-2xl border text-sm font-bold uppercase tracking-widest transition-all backdrop-blur-sm flex items-center justify-center ${
               otp.length === 6
                 ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95'
                 : 'bg-white/5 border-white/10 text-zinc-600 cursor-not-allowed'

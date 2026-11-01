@@ -108,7 +108,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
 
   // ── Main UI Layout ─────────────────────────────────────────────────────
   return (
-    <div className="relative flex min-h-screen sm:h-screen w-screen flex-col items-center overflow-x-hidden overflow-y-auto sm:overflow-hidden bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta pb-6 sm:pb-0">
+    <div className="relative flex h-dvh w-screen flex-col items-center gap-[2dvh] overflow-hidden p-[2.5dvh] bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
 
       {/* Background Printer Image */}
       <Image
@@ -122,10 +122,10 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
       />
 
       {/* Main Glassmorphism Container */}
-      <div className="relative mt-6 sm:mt-8 lg:mt-12 flex flex-1 sm:flex-none sm:h-[80%] min-h-[fit-content] w-[95%] lg:w-[90%] max-w-6xl flex-col rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-white/5 p-6 lg:p-10 shadow-2xl backdrop-blur-xl z-10 mb-4 sm:mb-0">
+      <div className="relative flex min-h-0 flex-1 w-[95%] lg:w-[90%] max-w-6xl flex-col rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-white/5 px-[4dvh] py-[3dvh] shadow-2xl backdrop-blur-xl z-10">
 
         {/* Top Header Row inside the card */}
-        <header className="flex flex-row items-center justify-between pb-4 sm:pb-6 lg:pb-8 gap-4">
+        <header className="flex shrink-0 flex-row items-center justify-between pb-[2dvh] gap-4">
           <div className="flex items-center gap-3 lg:gap-4 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 lg:px-6 lg:py-3 shadow-inner backdrop-blur-md">
             <Image
               src="/LOGO.svg"
@@ -164,19 +164,19 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Divider */}
-        <div className="mb-8 lg:mb-12 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent flex-shrink-0" />
+        <div className="mb-[2.5dvh] h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent flex-shrink-0" />
 
         {/* Two-column layout */}
-        <main className="flex flex-row flex-1 items-center justify-between px-2 sm:px-8 lg:px-16 gap-6 sm:gap-8 lg:gap-0">
+        <main className="flex min-h-0 flex-1 flex-row items-center justify-between px-2 sm:px-8 lg:px-12 gap-6 sm:gap-8">
 
           {/* Left: Stepper */}
-          <div className="flex flex-col gap-6 sm:gap-10 lg:gap-12 w-1/2 lg:w-[45%] pr-4 sm:pr-0">
+          <div className="flex flex-col justify-center gap-[3.5dvh] w-1/2 lg:w-[45%] pr-4 sm:pr-0">
             <div className="mb-1 text-left">
               <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-widest text-teal-400 uppercase leading-tight">How It Works</h1>
               <p className="text-xs sm:text-sm lg:text-base text-zinc-400 mt-1 sm:mt-2">Get your documents printed in three simple steps</p>
             </div>
 
-            <div className="flex flex-col gap-4 sm:gap-8 lg:gap-10 relative">
+            <div className="flex flex-col gap-[3dvh] relative">
               {/* Vertical Line Container */}
               <div className="absolute left-[33px] sm:left-[49px] lg:left-[57px] top-[30px] sm:top-[41px] lg:top-[45px] bottom-[30px] sm:bottom-[41px] lg:bottom-[45px] w-[2px] sm:w-[3px] -translate-x-1/2 z-0">
                 {/* Base Line */}
@@ -194,7 +194,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 1 */}
-              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep1 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' :
+              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 sm:px-6 lg:px-8 py-[1.8dvh] shadow-lg backdrop-blur-md transition-all duration-300 ${isStep1 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' :
                   (isStep2 || isStep3) ? 'border-teal-500/30 bg-black/40 opacity-100' :
                     'border-white/5 bg-black/20 opacity-60'
                 }`}>
@@ -214,7 +214,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 2 */}
-              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep2 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' :
+              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 sm:px-6 lg:px-8 py-[1.8dvh] shadow-lg backdrop-blur-md transition-all duration-300 ${isStep2 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' :
                   isStep3 ? 'border-teal-500/30 bg-black/40 opacity-100' :
                     'border-dashed border-white/10 bg-black/20 opacity-60'
                 }`}>
@@ -234,7 +234,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
               </div>
 
               {/* Step 3 */}
-              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5 shadow-lg backdrop-blur-md transition-all duration-300 ${isStep3 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' : 'border-dashed border-white/10 bg-black/20 opacity-60'
+              <div className={`relative z-10 flex flex-row items-center text-left gap-3 sm:gap-4 lg:gap-6 rounded-2xl sm:rounded-[2rem] border px-3 sm:px-6 lg:px-8 py-[1.8dvh] shadow-lg backdrop-blur-md transition-all duration-300 ${isStep3 ? 'border-white/20 bg-[#163b3e]/90 scale-[1.02] opacity-100' : 'border-dashed border-white/10 bg-black/20 opacity-60'
                 }`}>
                 <div className={`flex h-8 w-8 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full transition-colors font-bold text-sm sm:text-lg ${isStep3 ? 'bg-teal-400 text-teal-950 shadow-[0_0_15px_rgba(45,212,191,0.8)]' : 'bg-zinc-800 text-zinc-400'
                   }`}>
@@ -249,7 +249,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* Right: Dynamic Content Area */}
-          <div className="flex w-1/2 lg:w-[45%] flex-col items-center justify-center mt-0 lg:mt-10">
+          <div className="flex h-full min-h-0 w-1/2 lg:w-[45%] flex-col items-center justify-center">
             {children}
           </div>
 
@@ -257,7 +257,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Glassmorphism Footer */}
-      <footer className="relative sm:absolute sm:bottom-6 lg:bottom-8 flex w-[95%] lg:w-[90%] max-w-6xl flex-row items-center justify-between gap-2 sm:gap-4 rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 px-4 sm:px-6 lg:px-12 py-3 lg:py-5 shadow-xl backdrop-blur-xl z-10 shrink-0">
+      <footer className="relative flex w-[95%] lg:w-[90%] max-w-6xl flex-row items-center justify-between gap-2 sm:gap-4 rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 px-4 sm:px-6 lg:px-12 py-[1.8dvh] shadow-xl backdrop-blur-xl z-10 shrink-0">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-0 sm:gap-3 text-left">
           <span className="text-xs sm:text-sm font-medium tracking-wider text-zinc-400 uppercase">Kiosk ID</span>
           <div className="hidden sm:block h-4 w-px bg-white/20" />
