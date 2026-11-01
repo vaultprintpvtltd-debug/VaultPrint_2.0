@@ -18,7 +18,7 @@ export default function OTPPage() {
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState<number>(0)
   const [copied, setCopied] = useState(false)
-  const [status, setStatus] = useState<string>('queued')
+  const [status, setStatus] = useState<string>('paid')
 
   // Load OTP from sessionStorage (written by the payment page before it
   // navigates here). This is browser-only state that is unavailable during
@@ -132,7 +132,8 @@ export default function OTPPage() {
         {/* Status */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-center text-sm">
           <p className="text-zinc-400">Status: <span className="font-medium text-zinc-200 capitalize">{status}</span></p>
-          {status === 'queued' && <p className="mt-1 text-zinc-500">Walk to the kiosk and enter your code</p>}
+          {status === 'paid' && <p className="mt-1 text-zinc-500">Walk to the kiosk and enter your code</p>}
+          {status === 'queued' && <p className="mt-1 text-emerald-400">Code accepted — starting the printer...</p>}
           {status === 'printing' && <p className="mt-1 text-emerald-400">🖨️ Printing in progress...</p>}
           {status === 'failed' && <p className="mt-1 text-red-400">Print failed. Please contact support.</p>}
           {status === 'expired' && <p className="mt-1 text-red-400">Session expired.</p>}

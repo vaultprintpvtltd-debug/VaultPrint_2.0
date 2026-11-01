@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { PDFDocument } from 'pdf-lib'
+import { convertToPdf, getUploadType } from '@vaultprint/lib/convert'
 
 // ---------------------------------------------------------------------------
 // POST /api/upload/confirm
 //
 // Called after the browser completes the direct upload to Storage.
-// Downloads the file from Storage into a buffer, uses pdf-lib to extract
-// the page count, then updates the print_jobs row.
+// Downloads the file from Storage into a buffer, converts images / Word
+// documents to PDF (stored at {kiosk_id}/{job_id}.pdf, source deleted),
+// uses pdf-lib to extract the page count, then updates the print_jobs row.
 //
 // Request:  { session_id: string, file_path: string }
 // Response: { ok: true, total_pages: number }
 // ---------------------------------------------------------------------------
+
+// Word conversion can take a few seconds on a cold conversion service
+export const maxDuration = 60
 
 function getAdminSupabase() {
   return createClient(
@@ -53,6 +58,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
+  // The path must be the one presign issued for THIS job — never a
+  // client-chosen object (which could be another customer's file).
+  if (!job.file_path || file_path !== job.file_path) {
+    return NextResponse.json({ error: 'File path does not match this session' }, { status: 400 })
+  }
+
+  if (job.status !== 'created') {
+    return NextResponse.json(
+      { error: 'File already uploaded for this session' },
+      { status: 409 }
+    )
+  }
+
+  const uploadType = getUploadType(file_path)
+  if (!uploadType) {
+    return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 })
+  }
+
   // ── Download file from Supabase Storage ───────────────────────────────
   const { data: fileData, error: downloadError } = await supabase.storage
     .from('print-files')
@@ -65,11 +88,31 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  let pdfBytes = new Uint8Array(await fileData.arrayBuffer())
+  const pdfPath = `${job.kiosk_id}/${job.id}.pdf`
+
+  // ── Convert images / Word documents to PDF ────────────────────────────
+  if (uploadType.kind !== 'pdf') {
+    try {
+      pdfBytes = new Uint8Array(await convertToPdf(pdfBytes, uploadType, file_path))
+    } catch (err) {
+      console.error('Upload conversion failed:', err)
+      return NextResponse.json(
+        {
+          error:
+            uploadType.kind === 'image'
+              ? 'Could not read this image. Please upload a JPG, PNG or PDF.'
+              : 'Could not convert this document. Please save it as PDF and upload again.',
+        },
+        { status: 422 }
+      )
+    }
+  }
+
   // ── Extract page count with pdf-lib ───────────────────────────────────
   let totalPages: number
   try {
-    const arrayBuffer = await fileData.arrayBuffer()
-    const pdfDoc = await PDFDocument.load(arrayBuffer)
+    const pdfDoc = await PDFDocument.load(pdfBytes)
     totalPages = pdfDoc.getPageCount()
   } catch {
     return NextResponse.json(
@@ -85,11 +128,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // ── Store the converted PDF, drop the source ──────────────────────────
+  if (uploadType.kind !== 'pdf') {
+    const { error: storeError } = await supabase.storage
+      .from('print-files')
+      .upload(pdfPath, pdfBytes, { contentType: 'application/pdf', upsert: true })
+
+    if (storeError) {
+      return NextResponse.json(
+        { error: 'Failed to store converted file', details: storeError.message },
+        { status: 500 }
+      )
+    }
+
+    await supabase.storage.from('print-files').remove([file_path])
+  }
+
   // ── Update print_jobs row ─────────────────────────────────────────────
   const { error: updateError } = await supabase
     .from('print_jobs')
     .update({
-      file_path,
+      file_path: pdfPath,
       total_pages: totalPages,
       status: 'uploaded',
     })
@@ -108,7 +167,7 @@ export async function POST(request: NextRequest) {
     kiosk_id: job.kiosk_id,
     event: 'file_uploaded',
     actor: 'user',
-    metadata: { total_pages: totalPages, file_path },
+    metadata: { total_pages: totalPages, file_path: pdfPath, source_type: uploadType.ext },
   })
 
   return NextResponse.json({ ok: true, total_pages: totalPages })

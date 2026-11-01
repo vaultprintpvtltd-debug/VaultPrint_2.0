@@ -43,6 +43,8 @@ export default function CustomizePage() {
   // Job info
   const [totalPages, setTotalPages] = useState<number | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
+  // What the kiosk's printer can physically do (server clamps settings too)
+  const [capabilities, setCapabilities] = useState({ color: true, duplex: true })
 
   // Price
   const [price, setPrice] = useState<PriceInfo | null>(null)
@@ -107,6 +109,7 @@ export default function CustomizePage() {
         const data = await res.json()
         setTotalPages(data.total_pages)
         setFileName(data.file_name)
+        if (data.capabilities) setCapabilities(data.capabilities)
 
         if (!data.settings) {
           await saveSettings({
@@ -256,6 +259,7 @@ export default function CustomizePage() {
             <AccordionContent className="pt-2 pb-5">
               <div className="flex flex-col space-y-3 mb-5">
                 <span className="text-sm font-semibold text-zinc-700">Sides</span>
+                {capabilities.duplex ? (
                 <div className="grid grid-cols-2 gap-2">
                   <button 
                     onClick={() => setDuplex(false)}
@@ -270,6 +274,9 @@ export default function CustomizePage() {
                     2-Sided
                   </button>
                 </div>
+                ) : (
+                  <span className="text-sm text-zinc-600">This kiosk prints single-sided.</span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -369,7 +376,7 @@ export default function CustomizePage() {
           <AccordionItem value="item-4" className="bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] rounded-2xl px-5 relative overflow-hidden">
             <AccordionTrigger className="text-lg font-bold text-navy hover:no-underline">Colour Mode</AccordionTrigger>
             <AccordionContent className="pt-2 pb-5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${capabilities.color ? 'grid-cols-2' : 'grid-cols-1'}`}>
                  <button 
                     onClick={() => setColorMode('bw')}
                     className={`py-4 px-3 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${colorMode === 'bw' ? 'bg-zinc-800 text-white border-zinc-900 shadow-lg scale-[1.02]' : 'bg-white/60 text-zinc-600 border-white/60 hover:bg-white/80'}`}
@@ -379,6 +386,7 @@ export default function CustomizePage() {
                     </div>
                     <span className="text-sm font-bold">Black & White</span>
                   </button>
+                  {capabilities.color && (
                   <button 
                     onClick={() => setColorMode('colour')}
                     className={`py-4 px-3 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${colorMode === 'colour' ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white border-transparent shadow-lg shadow-purple-500/30 scale-[1.02]' : 'bg-white/60 text-zinc-600 border-white/60 hover:bg-white/80'}`}
@@ -388,6 +396,7 @@ export default function CustomizePage() {
                     </div>
                     <span className="text-sm font-bold">Colour Print</span>
                   </button>
+                  )}
               </div>
             </AccordionContent>
           </AccordionItem>

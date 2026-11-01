@@ -60,6 +60,8 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
 
   const [standardLabel, setStandardLabel] = useState('Print')
   const [school, setSchool] = useState<SchoolFormState>(DEFAULT_SCHOOL_FORM)
+  // Printer capabilities — absent in config means colour + duplex
+  const [printer, setPrinter] = useState({ color: true, duplex: true })
 
   // ── Load current config ────────────────────────────────────────────────
   // Only called from the mount effect; initial state already has
@@ -70,6 +72,13 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
       if (!res.ok) throw new Error('Failed to load config')
       const data = await res.json()
       const modes: Record<string, unknown>[] = data.config?.modes ?? []
+
+      if (data.config?.printer) {
+        setPrinter({
+          color: data.config.printer.color !== false,
+          duplex: data.config.printer.duplex !== false,
+        })
+      }
 
       const std = modes.find((m) => m.id === 'standard')
       if (std && typeof std.label === 'string') setStandardLabel(std.label)
@@ -148,7 +157,7 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
       })
     }
 
-    return { modes }
+    return { modes, printer }
   }
 
   // ── Save ───────────────────────────────────────────────────────────────
@@ -237,6 +246,35 @@ export function KioskConfigEditor({ kioskId, kioskName, onClose }: Props) {
                   The core Mode 1 flow cannot be disabled.
                 </div>
               </div>
+            </fieldset>
+
+            {/* ── Printer capabilities ──────────────────────────────── */}
+            <fieldset className="rounded-xl border border-zinc-800 p-4">
+              <legend className="px-2 text-sm font-semibold text-amber-400">
+                Printer Capabilities
+              </legend>
+              <div className="flex flex-wrap gap-6">
+                <label className="flex items-center gap-2 text-sm text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={printer.color}
+                    onChange={(e) => setPrinter({ ...printer, color: e.target.checked })}
+                  />
+                  Colour printing
+                </label>
+                <label className="flex items-center gap-2 text-sm text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={printer.duplex}
+                    onChange={(e) => setPrinter({ ...printer, duplex: e.target.checked })}
+                  />
+                  Automatic double-sided
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                Unticked options are hidden from customers and never charged.
+                HP LaserJet 1020: untick both (mono, single-sided).
+              </p>
             </fieldset>
 
             {/* ── School offline mode ───────────────────────────────── */}

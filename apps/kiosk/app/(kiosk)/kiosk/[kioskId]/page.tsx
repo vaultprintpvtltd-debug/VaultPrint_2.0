@@ -108,6 +108,12 @@ export default function KioskQRPage() {
           <div className="h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
           <span className="tracking-wide">QR Refreshes in <strong className="font-bold text-teal-400 font-jakarta">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</strong></span>
         </div>
+        <button
+          onClick={() => router.push(`/kiosk/${kioskId}/enter-otp`)}
+          className="mt-4 rounded-full border border-teal-400/40 bg-teal-400/10 px-6 py-3 text-base font-semibold text-teal-200 transition hover:bg-teal-400/20 active:scale-95"
+        >
+          Already paid? Enter your code
+        </button>
         {selectedMode === 'standard' && enabledModes !== null && enabledModes.length >= 2 && (
           <button
             onClick={() => setSelectedMode(null)}

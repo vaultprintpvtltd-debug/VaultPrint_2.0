@@ -74,9 +74,22 @@ export const KioskModeSchema = z.discriminatedUnion('id', [
   SchoolOfflineModeSchema,
 ])
 
+// ─── Printer capabilities ────────────────────────────────────────────────────
+// What the kiosk's physical printer can actually do. Absent = colour + duplex
+// (the original kiosks); a mono, simplex-only printer such as the HP LaserJet
+// 1020 sets both to false so those options are never offered or charged.
+
+export const PrinterCapabilitiesSchema = z
+  .object({
+    color: z.boolean(),
+    duplex: z.boolean(),
+  })
+  .strict()
+
 export const KioskConfigSchema = z
   .object({
     modes: z.array(KioskModeSchema).min(1),
+    printer: PrinterCapabilitiesSchema.optional(),
   })
   .strict()
   .refine(
@@ -102,6 +115,7 @@ export type StandardMode = z.infer<typeof StandardModeSchema>
 export type SchoolOfflineMode = z.infer<typeof SchoolOfflineModeSchema>
 export type KioskMode = z.infer<typeof KioskModeSchema>
 export type KioskConfig = z.infer<typeof KioskConfigSchema>
+export type PrinterCapabilities = z.infer<typeof PrinterCapabilitiesSchema>
 
 // ─── Defaults & helpers ──────────────────────────────────────────────────────
 
@@ -138,6 +152,26 @@ export function getModeById(
   id: KioskMode['id']
 ): KioskMode | undefined {
   return config.modes.find((m) => m.id === id)
+}
+
+/** Printer capabilities, defaulting to colour + duplex when unset. */
+export function getPrinterCapabilities(config: KioskConfig): PrinterCapabilities {
+  return config.printer ?? { color: true, duplex: true }
+}
+
+/**
+ * Clamp requested print settings to what the printer can do. Applied
+ * server-side before pricing, so an unsupported option can never be charged.
+ */
+export function clampToCapabilities<T extends { color_mode: string; duplex: boolean }>(
+  settings: T,
+  caps: PrinterCapabilities
+): T {
+  return {
+    ...settings,
+    color_mode: caps.color ? settings.color_mode : 'bw',
+    duplex: caps.duplex ? settings.duplex : false,
+  }
 }
 
 /** Convenience: the school_offline mode if present AND enabled. */

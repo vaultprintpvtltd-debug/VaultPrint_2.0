@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { purgeJobFiles } from '@/lib/purge-files'
 
 // ---------------------------------------------------------------------------
 // PATCH /api/kiosk/[id]/job/[jobId]
 //
 // Agent calls this after attempting to print a job.
-// Updates status to 'completed' or 'failed'.
+// Updates status to 'completed' or 'failed'. A completed job's file is
+// deleted immediately; a failed one is kept 24h for operator review.
 //
 // Request body: { status: 'completed' | 'failed', error_message?: string }
 // ---------------------------------------------------------------------------
@@ -97,6 +99,12 @@ export async function PATCH(
     actor: 'kiosk_agent',
     metadata: error_message ? { error: error_message } : {},
   })
+
+  if (status === 'completed') {
+    await purgeJobFiles(supabase, { kioskId, limit: 5 }).catch((err) =>
+      console.error('File purge after completion failed:', err)
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

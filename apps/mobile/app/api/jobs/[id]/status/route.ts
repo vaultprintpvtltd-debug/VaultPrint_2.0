@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getPrinterCapabilities, parseKioskConfig } from '@vaultprint/lib/kiosk-config'
 
 // ---------------------------------------------------------------------------
 // GET /api/jobs/[id]/status
@@ -7,7 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 // Polls the current status of a print job. Used by the OTP page to detect
 // when the job transitions to 'completed' or 'failed'.
 //
-// Response: { status, error_message?, completed_at? }
+// Response: { status, error_message?, completed_at?, ..., capabilities }
 // ---------------------------------------------------------------------------
 
 function getAdminSupabase() {
@@ -35,6 +36,12 @@ export async function GET(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
+  const { data: kiosk } = await supabase
+    .from('kiosks')
+    .select('config')
+    .eq('id', job.kiosk_id)
+    .single()
+
   return NextResponse.json({
     status: job.status,
     error_message: job.error_message,
@@ -61,6 +68,7 @@ export async function GET(
         duplex: job.duplex,
         orientation: job.orientation,
         paper_size: job.paper_size,
-    }
+    },
+    capabilities: getPrinterCapabilities(parseKioskConfig(kiosk?.config)),
   })
 }

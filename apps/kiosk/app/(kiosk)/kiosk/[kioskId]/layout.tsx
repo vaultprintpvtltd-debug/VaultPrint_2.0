@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { createBrowserClient } from '@vaultprint/db'
+import { provisionKioskApiKeyFromUrl } from '@/lib/kiosk-api'
 
 interface KioskInfo {
   name: string
@@ -20,6 +21,13 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
   const [currentTime, setCurrentTime] = useState(new Date())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // ── One-time device provisioning: /kiosk/[id]?key=<KIOSK_API_KEY> ─────
+  // Stores the kiosk API key (used by the OTP pad and Mode 2 screens) and
+  // strips it from the URL.
+  useEffect(() => {
+    provisionKioskApiKeyFromUrl()
+  }, [])
 
   // ── Fetch kiosk info from Supabase ─────────────────────────────────────
   useEffect(() => {

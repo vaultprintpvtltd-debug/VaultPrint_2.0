@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { acceptedUploadExtensions, getUploadType } from '@vaultprint/lib/convert'
 
 // ---------------------------------------------------------------------------
 // POST /api/upload/presign
@@ -9,7 +10,13 @@ import { createClient } from '@supabase/supabase-js'
 // to the presigned URL.
 //
 // Request:  { session_id: string, file_name: string, file_size: number }
-// Response: { upload_url: string, file_path: string, token: string }
+// Response: { upload_url, file_path, token, content_type }
+//
+// PDFs go straight to {kiosk_id}/{job_id}.pdf. Images and Word documents
+// go to {kiosk_id}/{job_id}.src.{ext} and are converted to that same .pdf
+// path by /api/upload/confirm — the print agent only ever sees a PDF.
+//
+// GET → { extensions } — the file types this deployment accepts.
 // ---------------------------------------------------------------------------
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
@@ -23,6 +30,10 @@ function getAdminSupabase() {
       auth: { persistSession: false, autoRefreshToken: false }
     }
   )
+}
+
+export async function GET() {
+  return NextResponse.json({ extensions: acceptedUploadExtensions() })
 }
 
 export async function POST(request: NextRequest) {
@@ -50,11 +61,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── Validate file is PDF ──────────────────────────────────────────────
-  if (!file_name.toLowerCase().endsWith('.pdf')) {
+  // ── Validate file type ────────────────────────────────────────────────
+  const uploadType = getUploadType(file_name)
+  if (!uploadType) {
+    const accepted = acceptedUploadExtensions().map((e) => e.toUpperCase()).join(', ')
     return NextResponse.json(
-      { error: 'Only PDF files are accepted' },
-      { status: 400 }
+      { error: `Unsupported file type. Accepted: ${accepted}` },
+      { status: 415 }
     )
   }
 
@@ -79,12 +92,16 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Generate presigned upload URL ─────────────────────────────────────
-  // Path: print-files/{kiosk_id}/{job_id}.pdf
-  const filePath = `${job.kiosk_id}/${job.id}.pdf`
+  // Path: print-files/{kiosk_id}/{job_id}.pdf (or .src.{ext} pending conversion)
+  const filePath =
+    uploadType.kind === 'pdf'
+      ? `${job.kiosk_id}/${job.id}.pdf`
+      : `${job.kiosk_id}/${job.id}.src.${uploadType.ext}`
 
+  // upsert: a failed upload/confirm can be retried within the same session
   const { data: signedData, error: signError } = await supabase.storage
     .from('print-files')
-    .createSignedUploadUrl(filePath)
+    .createSignedUploadUrl(filePath, { upsert: true })
 
   if (signError || !signedData) {
     console.error('Failed to create upload URL:', signError)
@@ -104,5 +121,6 @@ export async function POST(request: NextRequest) {
     upload_url: signedData.signedUrl,
     file_path: filePath,
     token: signedData.token,
+    content_type: uploadType.mime,
   })
 }

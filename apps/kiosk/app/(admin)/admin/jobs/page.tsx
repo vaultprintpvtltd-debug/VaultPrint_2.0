@@ -172,7 +172,7 @@ export default async function AdminJobsPage({
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
                           job.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
                           job.status === 'failed' || job.status === 'expired' ? 'bg-red-500/10 text-red-400' :
-                          job.status === 'queued' || job.status === 'printing' ? 'bg-blue-500/10 text-blue-400' :
+                          job.status === 'paid' || job.status === 'queued' || job.status === 'printing' ? 'bg-blue-500/10 text-blue-400' :
                           'bg-zinc-800 text-zinc-400'
                         }`}>
                           {job.status}

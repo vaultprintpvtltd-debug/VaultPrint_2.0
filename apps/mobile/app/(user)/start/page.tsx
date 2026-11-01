@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@vaultprint/db/server'
+import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@vaultprint/db'
 
 // ---------------------------------------------------------------------------
 // /start?k=[kioskId] — Session Creation Page (Server Component)
@@ -7,6 +8,9 @@ import { createServerClient } from '@vaultprint/db/server'
 // This is the entry point when a user scans the kiosk QR code.
 // It reads the ?k= param, directly interacts with the database to create
 // a print_jobs session, and immediately redirects to /print/[sessionId].
+//
+// Runs with the service role: the anon key can no longer insert print_jobs
+// (migration 007 — an anon insert could forge a 'queued' job).
 // ---------------------------------------------------------------------------
 
 interface StartPageProps {
@@ -40,12 +44,16 @@ export default async function StartPage({ searchParams }: StartPageProps) {
     return renderError('Invalid Link', 'Please scan the QR code on the kiosk to start printing.')
   }
 
-  const supabase = await createServerClient()
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
 
   // 1. Validate kiosk exists and is not offline
   const { data: kiosk, error: kioskError } = await supabase
     .from('kiosks')
-    .select()
+    .select('id, status')
     .eq('id', kioskId)
     .single()
 
@@ -61,7 +69,7 @@ export default async function StartPage({ searchParams }: StartPageProps) {
   const { data: job, error: jobError } = await supabase
     .from('print_jobs')
     .insert({ kiosk_id: kiosk.id, status: 'created' })
-    .select()
+    .select('id, session_id')
     .single()
 
   if (jobError || !job) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { purgeJobFiles } from '@/lib/purge-files'
 
 // ---------------------------------------------------------------------------
 // POST /api/kiosk/heartbeat
@@ -9,6 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 //
 // Updates: kiosks.last_heartbeat, kiosks.os_platform, kiosks.status → 'idle'
 //          (only if currently 'offline')
+// Also sweeps this kiosk's finished customer files (lib/purge-files.ts).
 //
 // Request body: { os_platform: string, printer_name?: string }
 // Response:     { ok: true, kiosk_id: string }
@@ -94,6 +96,11 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+
+  // Best-effort privacy sweep — never fails the heartbeat
+  await purgeJobFiles(supabase, { kioskId, limit: 10 }).catch((err) =>
+    console.error('Heartbeat file purge failed:', err)
+  )
 
   return NextResponse.json({ ok: true, kiosk_id: kioskId })
 }

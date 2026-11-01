@@ -6,8 +6,11 @@ import { createClient } from '@supabase/supabase-js'
 //
 // Called by the agent on startup.
 // Finds jobs stuck in 'printing' state for longer than stale_before timestamp
-// (typically now - 10 minutes), and resets them back to 'queued' so they can
-// be retried on the next poll cycle.
+// (typically now - 10 minutes) and marks them 'failed' for operator review.
+//
+// They are deliberately NOT requeued: the agent may have crashed after the
+// printer already received the pages, and a blind retry double-prints.
+// Response: { recovered: 0, interrupted: n } (recovered kept for old agents)
 // ---------------------------------------------------------------------------
 
 function getAdminSupabase() {
@@ -57,31 +60,35 @@ export async function POST(
   }
 
   if (!staleJobs || staleJobs.length === 0) {
-    return NextResponse.json({ recovered: 0 })
+    return NextResponse.json({ recovered: 0, interrupted: 0 })
   }
 
   const staleIds = (staleJobs as { id: string }[]).map((j) => j.id)
 
-  // Reset them all back to 'queued'
+  // Fail them for review — never auto-reprint
   const { error: updateError } = await supabase
     .from('print_jobs')
-    .update({ status: 'queued', error_message: null })
+    .update({
+      status: 'failed',
+      error_message: 'Interrupted while printing (agent restart) — not retried automatically to avoid a duplicate print',
+    })
     .in('id', staleIds)
+    .eq('status', 'printing')
 
   if (updateError) {
-    return NextResponse.json({ error: 'Failed to reset stale jobs' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to mark stale jobs' }, { status: 500 })
   }
 
   // Write audit log entries
   const auditRows = staleIds.map((id: string) => ({
     job_id: id,
     kiosk_id: kioskId,
-    event: 'stale_job_recovered',
+    event: 'print_interrupted',
     actor: 'kiosk_agent',
-    metadata: { stale_before },
+    metadata: { stale_before, review_required: true },
   }))
 
   await supabase.from('audit_log').insert(auditRows)
 
-  return NextResponse.json({ recovered: staleIds.length })
+  return NextResponse.json({ recovered: 0, interrupted: staleIds.length })
 }

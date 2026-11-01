@@ -1,59 +1,104 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { kioskApi, getKioskApiKey } from '@/lib/kiosk-api'
+
+// ---------------------------------------------------------------------------
+// /kiosk/[kioskId]/enter-otp — the print release pad
+//
+// The customer types the 6-digit code from their phone. POST /otp matches
+// it against this kiosk's paid jobs and, if correct, releases the job to
+// the print agent ('paid' → 'queued'). Then → success screen for that job.
+// Returns to the idle screen after 60s without input.
+// ---------------------------------------------------------------------------
+
+const IDLE_TIMEOUT_SECONDS = 60
+
+interface OtpResponse {
+  valid?: boolean
+  job_id?: string
+  attempts_remaining?: number
+  reason?: string
+}
 
 export default function KioskEnterOTPPage() {
   const router = useRouter()
   const params = useParams<{ kioskId: string }>()
-  
-  const [otp, setOtp] = useState<string>('')
-  const [attempts, setAttempts] = useState(3)
-  const [isShaking, setIsShaking] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(272) // 4:32
+  const kioskId = params.kioskId
 
+  const [otp, setOtp] = useState<string>('')
+  const [message, setMessage] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [isShaking, setIsShaking] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(IDLE_TIMEOUT_SECONDS)
+
+  // Any key press resets the inactivity countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      router.push(`/kiosk/${params.kioskId}/error`)
+      router.push(`/kiosk/${kioskId}`)
       return
     }
-    const timer = setInterval(() => setTimeLeft(t => t - 1), 1000)
-    return () => clearInterval(timer)
-  }, [timeLeft, router, params.kioskId])
-
-  const handleKeyPress = (key: string) => {
-    if (key === 'del') {
-      setOtp(prev => prev.slice(0, -1))
-    } else if (key === 'enter') {
-      if (otp.length === 6) {
-        verifyOtp()
-      }
-    } else {
-      if (otp.length < 6) {
-        setOtp(prev => prev + key)
-      }
-    }
-  }
-
-  const verifyOtp = () => {
-    // Mock validation: "000000" is success, anything else fails
-    if (otp === '000000') {
-      router.push(`/kiosk/${params.kioskId}/success?jobId=mock`)
-    } else {
-      const newAttempts = attempts - 1
-      if (newAttempts <= 0) {
-        router.push(`/kiosk/${params.kioskId}/error`)
-      } else {
-        setAttempts(newAttempts)
-        setOtp('')
-        triggerShake()
-      }
-    }
-  }
+    const timer = setTimeout(() => setTimeLeft(t => t - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [timeLeft, router, kioskId])
 
   const triggerShake = () => {
     setIsShaking(true)
     setTimeout(() => setIsShaking(false), 400)
+  }
+
+  const verifyOtp = useCallback(async (code: string) => {
+    if (submitting) return
+    if (!getKioskApiKey()) {
+      setMessage('Kiosk not provisioned — staff: open this screen once with ?key=')
+      return
+    }
+
+    setSubmitting(true)
+    setMessage(null)
+    try {
+      const { ok, data } = await kioskApi<OtpResponse>(kioskId, '/otp', { otp: code })
+
+      if (ok && data.valid && data.job_id) {
+        router.push(`/kiosk/${kioskId}/success?jobId=${data.job_id}`)
+        return
+      }
+
+      setOtp('')
+      triggerShake()
+      if (data.reason === 'printer_offline') {
+        setMessage('The printer is offline right now. Your code has NOT been used — please try again shortly or contact staff.')
+      } else if (data.reason === 'locked') {
+        setMessage('Too many incorrect codes. Please wait a few minutes.')
+      } else if (data.reason === 'expired' || data.reason === 'max_attempts') {
+        setMessage('This code has expired. Please contact staff for help.')
+      } else if (data.reason === 'wrong') {
+        setMessage('Incorrect code — please check your phone and try again.')
+      } else {
+        setMessage(data.error || 'Could not verify the code. Please try again.')
+      }
+    } catch {
+      setOtp('')
+      setMessage('Network problem — please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }, [kioskId, router, submitting])
+
+  const handleKeyPress = (key: string) => {
+    setTimeLeft(IDLE_TIMEOUT_SECONDS)
+    if (submitting) return
+    if (key === 'del') {
+      setOtp(prev => prev.slice(0, -1))
+    } else if (key === 'enter') {
+      if (otp.length === 6) verifyOtp(otp)
+    } else if (otp.length < 6) {
+      const next = otp + key
+      setOtp(next)
+      // Auto-submit on the sixth digit
+      if (next.length === 6) verifyOtp(next)
+    }
   }
 
   const formatTime = (seconds: number) => {
@@ -81,14 +126,14 @@ export default function KioskEnterOTPPage() {
         <div className="w-full bg-black/30 rounded-2xl p-3 mb-3 border border-white/5 flex items-center justify-center gap-3 shadow-inner">
           <div className="h-2 w-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
           <span className="text-zinc-300 font-medium tracking-wide text-sm">
-            Ready: 12 pages · B&W · 2 copies
+            {submitting ? 'Checking your code…' : 'Paid on your phone? Release your print here'}
           </span>
         </div>
 
         <div className="text-center mb-3">
           <h3 className="text-lg lg:text-xl font-bold text-white mb-1 tracking-wide">Enter the 6-digit code</h3>
           <p className="text-xs lg:text-sm text-zinc-400 leading-relaxed">
-            Check your mobile device for the OTP. (Hint: 000000)
+            The code is shown on your phone after payment.
           </p>
         </div>
         
@@ -111,10 +156,10 @@ export default function KioskEnterOTPPage() {
         </div>
 
         {/* Warning Message */}
-        <div className="h-5 mb-2 flex items-center justify-center w-full">
-          {attempts < 3 && (
-            <span className="text-rose-400 text-sm font-semibold tracking-wide animate-pulse bg-rose-500/10 px-4 py-1.5 rounded-full border border-rose-500/20">
-              Incorrect — {attempts} {attempts === 1 ? 'attempt' : 'attempts'} remaining
+        <div className="min-h-5 mb-2 flex items-center justify-center w-full">
+          {message && (
+            <span className="text-rose-300 text-sm font-semibold tracking-wide text-center bg-rose-500/10 px-4 py-1.5 rounded-2xl border border-rose-500/20">
+              {message}
             </span>
           )}
         </div>
@@ -146,7 +191,7 @@ export default function KioskEnterOTPPage() {
           </button>
           <button
             onClick={() => handleKeyPress('enter')}
-            disabled={otp.length !== 6}
+            disabled={otp.length !== 6 || submitting}
             className={`h-12 lg:h-14 rounded-2xl border text-sm font-bold uppercase tracking-widest transition-all backdrop-blur-sm flex items-center justify-center ${
               otp.length === 6
                 ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] active:scale-95'
@@ -162,7 +207,7 @@ export default function KioskEnterOTPPage() {
         <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span className="tracking-wide">Code expires in {formatTime(timeLeft)}</span>
+        <span className="tracking-wide">Returning to start in {formatTime(timeLeft)}</span>
       </div>
     </>
   )

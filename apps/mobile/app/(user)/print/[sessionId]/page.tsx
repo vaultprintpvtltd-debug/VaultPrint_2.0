@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
 
@@ -14,6 +14,17 @@ export default function PrintUploadPage() {
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [totalPages, setTotalPages] = useState<number | null>(null)
+  // File types this deployment accepts (Word only when conversion is configured)
+  const [extensions, setExtensions] = useState<string[]>(['pdf', 'jpg', 'jpeg', 'png'])
+
+  useEffect(() => {
+    fetch('/api/upload/presign')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.extensions)) setExtensions(data.extensions)
+      })
+      .catch(() => {})
+  }, [])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -26,7 +37,17 @@ export default function PrintUploadPage() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      ...(extensions.includes('docx')
+        ? {
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            'application/msword': ['.doc'],
+          }
+        : {}),
+    },
     maxFiles: 1,
     maxSize: 50 * 1024 * 1024, // 50MB
   })
@@ -53,12 +74,12 @@ export default function PrintUploadPage() {
         throw new Error(errorData.error || 'Failed to get upload URL')
       }
 
-      const { upload_url, file_path } = await presignRes.json()
+      const { upload_url, file_path, content_type } = await presignRes.json()
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', upload_url, true)
-        xhr.setRequestHeader('Content-Type', 'application/pdf')
+        xhr.setRequestHeader('Content-Type', content_type || file.type || 'application/pdf')
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
@@ -89,7 +110,7 @@ export default function PrintUploadPage() {
 
       if (!confirmRes.ok) {
         const errorData = await confirmRes.json()
-        throw new Error(errorData.error || 'Failed to process PDF')
+        throw new Error(errorData.error || 'Failed to process file')
       }
 
       const confirmData = await confirmRes.json()
@@ -146,7 +167,7 @@ export default function PrintUploadPage() {
 
         <div className="mb-6 text-center relative z-10">
           <h1 className="text-2xl font-bold text-navy mb-1">Upload Document</h1>
-          <p className="text-sm text-zinc-600">Select the PDF file you want to print.</p>
+          <p className="text-sm text-zinc-600">Select the file you want to print.</p>
         </div>
 
         {/* Dropzone */}
@@ -167,7 +188,7 @@ export default function PrintUploadPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
               </div>
-              <p className="font-semibold text-navy text-base">Tap or drag PDF here</p>
+              <p className="font-semibold text-navy text-base">Tap or drag your file here</p>
               <p className="text-xs text-zinc-500 mt-1">Maximum file size 50MB</p>
             </div>
           )}

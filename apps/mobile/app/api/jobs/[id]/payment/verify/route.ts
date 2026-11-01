@@ -9,8 +9,14 @@ import { isValidSignature, generateOTP, hashOTP } from '@vaultprint/lib'
 //   1. Generates a 6-digit OTP
 //   2. Hashes it with bcrypt
 //   3. Stores hash + expiry in print_jobs
-//   4. Sets status = 'queued'
+//   4. Sets status = 'paid' — the job is NOT printable yet. Only the OTP
+//      entered at the kiosk releases it ('paid' → 'queued').
 //   5. Returns plaintext OTP (shown once to user, never logged)
+//
+// One atomic UPDATE, guarded on status. It succeeds from 'payment_pending',
+// or from 'paid' with no OTP yet (the Razorpay webhook got there first and
+// only records the payment — it can't show an OTP to anyone). A replay
+// after the OTP was issued updates zero rows → 409.
 //
 // Request:  { razorpay_order_id, razorpay_payment_id, razorpay_signature }
 // Response: { otp, expires_at }
@@ -75,15 +81,6 @@ export async function POST(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
-  // Idempotent: if already paid/queued, don't re-process
-  const paidStatuses = ['paid', 'queued', 'printing', 'completed']
-  if (paidStatuses.includes(job.status)) {
-    return NextResponse.json(
-      { error: 'Payment already verified for this session' },
-      { status: 409 }
-    )
-  }
-
   if (job.razorpay_order_id !== razorpay_order_id) {
     return NextResponse.json(
       { error: 'Order ID mismatch' },
@@ -96,8 +93,8 @@ export async function POST(
   const otpHash = await hashOTP(otp)
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
-  // 4. Update job
-  const { error: updateError } = await supabase
+  // 4. Update job — atomic, guarded transition
+  const { data: updated, error: updateError } = await supabase
     .from('print_jobs')
     .update({
       razorpay_payment_id,
@@ -105,15 +102,25 @@ export async function POST(
       otp_hash: otpHash,
       otp_expires_at: expiresAt,
       otp_attempts: 0,
-      status: 'queued',
+      status: 'paid',
     })
     .eq('id', job.id)
+    .eq('razorpay_order_id', razorpay_order_id)
+    .or('status.eq.payment_pending,and(status.eq.paid,otp_hash.is.null)')
+    .select('id')
 
   if (updateError) {
     console.error('Failed to update job after payment:', updateError)
     return NextResponse.json(
       { error: 'Failed to process payment', details: updateError.message },
       { status: 500 }
+    )
+  }
+
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: 'Payment already verified for this session' },
+      { status: 409 }
     )
   }
 

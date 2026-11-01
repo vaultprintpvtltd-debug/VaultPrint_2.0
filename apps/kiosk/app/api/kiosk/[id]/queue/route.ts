@@ -4,8 +4,9 @@ import { createClient } from '@supabase/supabase-js'
 // ---------------------------------------------------------------------------
 // GET /api/kiosk/[id]/queue
 //
-// Agent polls this every 3s. Returns the oldest job where status='queued'.
-// Automatically transitions the job to 'printing'.
+// Agent polls this every 3s. Claims the oldest job where status='queued'
+// (released by a correct OTP at the kiosk, or a confirmed POS payment) and
+// transitions it to 'printing' atomically via claim_next_job().
 // Also generates a signed URL for the agent to download the PDF.
 //
 // Response: { job: { id, file_url, settings, copies, total_pages } } or { job: null }
@@ -32,35 +33,51 @@ export async function GET(
 
   const supabase = getAdminSupabase()
 
-  // 1. Find oldest queued job for this kiosk
-  const { data: jobs, error: findError } = await supabase
-    .from('print_jobs')
-    .select('id, file_path, color_mode, duplex, copies, pages_to_print, orientation, paper_size')
-    .eq('kiosk_id', kioskId)
-    .eq('status', 'queued')
-    .order('updated_at', { ascending: true })
-    .limit(1)
+  // 1. Atomically claim the oldest released job (claim_next_job uses
+  //    FOR UPDATE SKIP LOCKED and flips it to 'printing' in one statement,
+  //    so overlapping polls can never receive the same job twice).
+  const { data: claimed, error: claimError } = await supabase
+    .rpc('claim_next_job', { p_kiosk_id: kioskId })
 
-  if (findError) {
-    return NextResponse.json({ error: 'Failed to query queue' }, { status: 500 })
+  if (claimError) {
+    return NextResponse.json({ error: 'Failed to claim job' }, { status: 500 })
   }
 
-  if (!jobs || jobs.length === 0) {
+  const job = (claimed as Array<Record<string, unknown>> | null)?.[0] as
+    | {
+        id: string
+        file_path: string
+        color_mode: string
+        duplex: boolean
+        copies: number
+        pages_to_print: string
+        orientation: string
+        paper_size: string
+        payment_mode: string
+        razorpay_payment_id: string | null
+      }
+    | undefined
+
+  if (!job) {
     return NextResponse.json({ job: null })
   }
 
-  const job = jobs[0]
+  // 2. Defence in depth: never print an online-payment job with no payment
+  if (job.payment_mode === 'razorpay' && !job.razorpay_payment_id) {
+    await supabase
+      .from('print_jobs')
+      .update({ status: 'failed', error_message: 'No payment recorded — refused to print' })
+      .eq('id', job.id)
 
-  // 2. Transition to 'printing'
-  const { error: updateError } = await supabase
-    .from('print_jobs')
-    .update({ status: 'printing' })
-    .eq('id', job.id)
-    // Concurrency check: only update if still queued
-    .eq('status', 'queued')
+    await supabase.from('audit_log').insert({
+      job_id: job.id,
+      kiosk_id: kioskId,
+      event: 'print_refused_unpaid',
+      actor: 'kiosk_agent',
+      metadata: {},
+    })
 
-  if (updateError) {
-    return NextResponse.json({ error: 'Failed to claim job' }, { status: 500 })
+    return NextResponse.json({ job: null })
   }
 
   // 3. Generate signed URL (valid for 10 minutes)

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  clampToCapabilities,
+  getPrinterCapabilities,
+  parseKioskConfig,
+} from '@vaultprint/lib/kiosk-config'
 
 // ---------------------------------------------------------------------------
 // PATCH /api/jobs/[id]/settings
 //
 // Saves print configuration for a job. Looks up pricing_config to calculate
 // billable_pages and total_price. Updates print_jobs row.
+// Colour / duplex are clamped to the kiosk printer's capabilities before
+// pricing, so an option the printer can't produce is never charged.
 //
 // Request body: { copies, color_mode, duplex, orientation, pages_to_print, paper_size }
 // Response:     { price_per_page, billable_pages, total_price, settings }
@@ -85,8 +92,18 @@ export async function PATCH(
 
   // 2. Validate and extract settings
   const copies = Math.max(1, Math.min(50, parseInt(String(body.copies), 10) || 1))
-  const color_mode = ['bw', 'colour'].includes(String(body.color_mode)) ? (body.color_mode as string) : 'bw'
-  const duplex = body.duplex === true
+  const { data: kiosk } = await supabase
+    .from('kiosks')
+    .select('config')
+    .eq('id', job.kiosk_id)
+    .single()
+  const { color_mode, duplex } = clampToCapabilities(
+    {
+      color_mode: ['bw', 'colour'].includes(String(body.color_mode)) ? (body.color_mode as string) : 'bw',
+      duplex: body.duplex === true,
+    },
+    getPrinterCapabilities(parseKioskConfig(kiosk?.config))
+  )
   const orientation = ['portrait', 'landscape', 'auto'].includes(String(body.orientation)) ? (body.orientation as string) : 'auto'
   const pages_to_print = typeof body.pages_to_print === 'string' ? body.pages_to_print.trim() : 'all'
   const paper_size = 'A4' // Always A4 for v1

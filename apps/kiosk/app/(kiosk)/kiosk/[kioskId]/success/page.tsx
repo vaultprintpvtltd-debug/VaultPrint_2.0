@@ -27,6 +27,7 @@ function SuccessContent() {
   const pathRef = useRef<SVGPathElement>(null)
 
   const isCompleted = status === 'completed'
+  const isFailed = status === 'failed' || status === 'expired'
 
   // 1. Fetch Job Info
   useEffect(() => {
@@ -44,6 +45,7 @@ function SuccessContent() {
         })
         setStatus(data.status)
         if (data.status === 'completed') setCountdown((c) => c ?? 5)
+        if (data.status === 'failed' || data.status === 'expired') setCountdown((c) => c ?? 20)
       }
     }
     fetchJob()
@@ -54,6 +56,7 @@ function SuccessContent() {
         const newStatus = (payload.new as { status: string }).status
         setStatus(newStatus)
         if (newStatus === 'completed') setCountdown((c) => c ?? 5)
+        if (newStatus === 'failed' || newStatus === 'expired') setCountdown((c) => c ?? 20)
       })
       .subscribe()
 
@@ -80,6 +83,12 @@ function SuccessContent() {
        tl.to(checkmarkRef.current, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 }, '-=0.2')
     }
   }, [isCompleted])
+
+  // Safety net: never leave the shared screen stuck on one customer's job
+  useEffect(() => {
+    const t = setTimeout(() => router.push(`/kiosk/${params.kioskId}`), 15 * 60 * 1000)
+    return () => clearTimeout(t)
+  }, [params.kioskId, router])
 
   // 3. Handle Countdown
   useEffect(() => {
@@ -112,6 +121,11 @@ function SuccessContent() {
                 <circle ref={circleRef} cx="26" cy="26" r="24" stroke="currentColor" />
                 <path ref={pathRef} strokeLinecap="round" strokeLinejoin="round" d="M16 26l7 7 15-15" />
               </svg>
+            ) : isFailed ? (
+              <svg className="h-20 w-20 text-rose-400" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="3">
+                <circle cx="26" cy="26" r="24" stroke="currentColor" />
+                <path strokeLinecap="round" d="M18 18l16 16M34 18L18 34" />
+              </svg>
             ) : (
               // Printing spinner
               <div className="relative flex items-center justify-center h-20 w-20">
@@ -127,10 +141,20 @@ function SuccessContent() {
           
           <div>
             <h3 className="text-xl lg:text-2xl font-bold text-white mb-2 tracking-wide transition-all">
-              {isCompleted ? 'Print Complete' : 'Printing Document'}
+              {isCompleted
+                ? 'Print Complete'
+                : isFailed
+                  ? 'Print Problem'
+                  : status === 'queued'
+                    ? 'Starting Printer'
+                    : 'Printing Document'}
             </h3>
             <p className="text-sm text-zinc-400 leading-relaxed max-w-[250px]">
-              {isCompleted ? 'Collect your document from the tray below.' : 'Please wait while your document is being printed.'}
+              {isCompleted
+                ? 'Collect your document from the tray below.'
+                : isFailed
+                  ? 'Something went wrong with your print. Please contact staff — you will not be charged twice.'
+                  : 'Please wait while your document is being printed.'}
             </p>
           </div>
 
