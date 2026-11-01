@@ -7,3 +7,8 @@ logs/
 
 # Dependencies
 node_modules/
+
+# Runtime state (job journal, downloads) and the local SumatraPDF binary
+state/
+temp/
+SumatraPDF.exe
