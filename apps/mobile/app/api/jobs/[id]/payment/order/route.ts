@@ -79,7 +79,15 @@ export async function POST(
   } catch (err) {
     console.error('Razorpay order creation failed:', err)
     return NextResponse.json(
-      { error: 'Failed to create payment order', details: err instanceof Error ? err.message : String(err) },
+      {
+        error: 'Failed to create payment order',
+        // Razorpay SDK errors are { statusCode, error: { code, description } }
+        details:
+          err instanceof Error
+            ? err.message
+            : (err as { error?: { description?: string } })?.error?.description ?? JSON.stringify(err),
+        razorpay_status: (err as { statusCode?: number })?.statusCode,
+      },
       { status: 500 }
     )
   }

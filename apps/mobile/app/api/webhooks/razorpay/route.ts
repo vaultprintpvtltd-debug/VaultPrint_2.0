@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
   }
 
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET
+  // trim(): a pasted env value with a stray space/newline must not break it
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim()
   if (!webhookSecret) {
     console.error('RAZORPAY_WEBHOOK_SECRET not configured')
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
@@ -43,10 +44,11 @@ export async function POST(request: NextRequest) {
     .update(rawBody)
     .digest('hex')
 
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  )
+  // timingSafeEqual throws on different lengths — check first (a malformed
+  // signature must be a 401, not a crash)
+  const isValid =
+    signature.length === expectedSignature.length &&
+    crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
 
   if (!isValid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
