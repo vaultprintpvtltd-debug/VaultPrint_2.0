@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import crypto from 'crypto'
 
@@ -17,28 +18,15 @@ import crypto from 'crypto'
 //       here as defense-in-depth.
 // ---------------------------------------------------------------------------
 
-async function getAuthenticatedSupabase() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
+// Service-role client WITHOUT the request cookies. Passing the admin's
+// session cookie to @supabase/ssr makes PostgREST run as `authenticated`
+// instead of service_role, and RLS then rejects the kiosk insert/delete.
+// The admin session itself is checked separately in verifyAdminSession().
+function getAuthenticatedSupabase() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Ignored in Server Components / Route Handlers
-          }
-        },
-      },
-    }
+    { auth: { persistSession: false, autoRefreshToken: false } }
   )
 }
 
@@ -80,7 +68,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = await getAuthenticatedSupabase()
+  const supabase = getAuthenticatedSupabase()
 
   const { data: kiosks, error } = await supabase
     .from('kiosks')
@@ -152,7 +140,7 @@ export async function POST(request: NextRequest) {
     .digest('hex')
 
   // ── Insert kiosk row ──────────────────────────────────────────────────
-  const supabase = await getAuthenticatedSupabase()
+  const supabase = getAuthenticatedSupabase()
 
   const { data: kiosk, error } = await supabase
     .from('kiosks')
