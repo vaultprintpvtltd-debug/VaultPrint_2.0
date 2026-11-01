@@ -29,6 +29,23 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     provisionKioskApiKeyFromUrl()
   }, [])
 
+  // ── Installable full-screen app (Android box kiosk mode) ───────────────
+  // The service worker is required for installability on the box's Chrome
+  // and shows a self-reloading "Reconnecting…" screen when offline.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/kiosk-sw.js', { scope: '/kiosk/' }).catch(() => {})
+    }
+  }, [])
+
+  // React hoists these into <head>
+  const appHead = (
+    <>
+      <link rel="manifest" href={`/kiosk/${kioskId}/manifest.webmanifest`} />
+      <meta name="theme-color" content="#09090b" />
+    </>
+  )
+
   // ── Fetch kiosk info from Supabase ─────────────────────────────────────
   useEffect(() => {
     const fetchKioskInfo = async () => {
@@ -81,6 +98,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-jakarta">
+        {appHead}
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-teal-400" />
           <p className="text-lg text-zinc-400">Connecting to VaultPrint…</p>
@@ -109,6 +127,8 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
   // ── Main UI Layout ─────────────────────────────────────────────────────
   return (
     <div className="relative flex h-dvh w-screen flex-col items-center gap-[2dvh] overflow-hidden p-[2.5dvh] bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
+
+      {appHead}
 
       {/* Background Printer Image */}
       <Image
