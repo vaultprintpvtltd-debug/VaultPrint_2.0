@@ -142,7 +142,9 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
 
   // ── Main UI Layout ─────────────────────────────────────────────────────
   return (
-    <div className="relative flex h-screen w-screen flex-col items-center gap-[2vh] overflow-hidden p-[2.5vh] bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
+    // fixed + inset-0: exactly the visible window, whatever 100vh means on
+    // the box's Chrome 101 (it is taller than the full-screen viewport there)
+    <div className="fixed inset-0 flex flex-col items-center gap-[2vh] overflow-hidden p-[2.5vh] bg-[#09090b] text-zinc-100 select-none bg-[url('/bg_kiosk.svg')] bg-cover bg-center bg-no-repeat font-jakarta">
 
       {appHead}
 
