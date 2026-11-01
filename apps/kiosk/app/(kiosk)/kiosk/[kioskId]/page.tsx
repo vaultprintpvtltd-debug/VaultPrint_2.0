@@ -90,8 +90,8 @@ export default function KioskQRPage() {
 
   return (
     <>
-      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3dvh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl kiosk-panel mx-auto flex items-center justify-center transition-all duration-500 scale-100 opacity-100">
-        <div className="rounded-xl bg-white p-[1.5dvh] flex items-center justify-center h-full w-full">
+      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3vh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl kiosk-panel mx-auto flex items-center justify-center transition-all duration-500 scale-100 opacity-100">
+        <div className="rounded-xl bg-white p-[1.5vh] flex items-center justify-center h-full w-full">
           <QRCodeSVG
             value={qrUrl}
             size={400}
@@ -103,7 +103,7 @@ export default function KioskQRPage() {
         </div>
       </div>
 
-      <div className="mt-[2dvh] shrink-0 flex flex-wrap items-center justify-center gap-3 text-center transition-opacity duration-500 delay-200">
+      <div className="mt-[2vh] shrink-0 flex flex-wrap items-center justify-center gap-3 text-center transition-opacity duration-500 delay-200">
         <div className="flex items-center gap-2 text-zinc-300 text-sm lg:text-base bg-black/30 border border-white/5 rounded-full px-5 lg:px-6 py-2.5 lg:py-3 shadow-inner backdrop-blur-md">
           <div className="h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
           <span className="tracking-wide">QR Refreshes in <strong className="font-bold text-teal-400 font-jakarta">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</strong></span>

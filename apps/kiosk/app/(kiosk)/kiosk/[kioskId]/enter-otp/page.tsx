@@ -124,17 +124,17 @@ export default function KioskEnterOTPPage() {
         }
       `}</style>
       
-      <div className={`rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3dvh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl min-h-0 flex-1 w-full max-w-[440px] mx-auto flex flex-col items-center transition-all duration-500 ${isShaking ? 'animate-shake' : ''}`}>
+      <div className={`rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3vh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl min-h-0 flex-1 w-full max-w-[440px] mx-auto flex flex-col items-center transition-all duration-500 ${isShaking ? 'animate-shake' : ''}`}>
         
         {/* Job Context Strip */}
-        <div className="w-full shrink-0 bg-black/30 rounded-2xl px-3 py-[1.2dvh] mb-[1.2dvh] border [@media(max-height:660px)]:hidden border-white/5 flex items-center justify-center gap-3 shadow-inner">
+        <div className="w-full shrink-0 bg-black/30 rounded-2xl px-3 py-[1.2vh] mb-[1.2vh] border [@media(max-height:660px)]:hidden border-white/5 flex items-center justify-center gap-3 shadow-inner">
           <div className="h-2 w-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
           <span className="text-zinc-300 font-medium tracking-wide text-sm">
             {submitting ? 'Checking your code…' : 'Paid on your phone? Release your print here'}
           </span>
         </div>
 
-        <div className="text-center shrink-0 mb-[1.2dvh]">
+        <div className="text-center shrink-0 mb-[1.2vh]">
           <h3 className="text-lg lg:text-xl font-bold text-white mb-1 tracking-wide">Enter the 6-digit code</h3>
           <p className="text-xs lg:text-sm text-zinc-400 leading-relaxed [@media(max-height:660px)]:hidden">
             The code is shown on your phone after payment.
@@ -146,7 +146,7 @@ export default function KioskEnterOTPPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className={`w-[clamp(32px,6dvh,48px)] h-[clamp(36px,7dvh,56px)] flex items-center justify-center rounded-xl border-2 transition-all ${
+              className={`w-[clamp(32px,6vh,48px)] h-[clamp(36px,7vh,56px)] flex items-center justify-center rounded-xl border-2 transition-all ${
                 i < otp.length 
                   ? 'border-teal-400 bg-teal-400/10 text-white shadow-[0_0_10px_rgba(45,212,191,0.2)]' 
                   : 'border-white/10 bg-black/40 text-transparent'
@@ -160,7 +160,7 @@ export default function KioskEnterOTPPage() {
         </div>
 
         {/* Warning Message */}
-        <div className="min-h-5 shrink-0 mb-[1dvh] flex items-center justify-center w-full">
+        <div className="min-h-5 shrink-0 mb-[1vh] flex items-center justify-center w-full">
           {message && (
             <span className="text-rose-300 text-sm font-semibold tracking-wide text-center bg-rose-500/10 px-4 py-1.5 rounded-2xl border border-rose-500/20">
               {message}
@@ -169,7 +169,7 @@ export default function KioskEnterOTPPage() {
         </div>
 
         {/* Numpad */}
-        <div className="grid min-h-0 flex-1 grid-cols-3 grid-rows-4 gap-[1dvh] w-full">
+        <div className="grid min-h-0 flex-1 grid-cols-3 grid-rows-4 gap-[1vh] w-full">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
             <button
               key={num}

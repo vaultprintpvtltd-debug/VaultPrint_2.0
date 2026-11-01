@@ -50,7 +50,7 @@ export default function KioskErrorPage() {
 
   return (
     <>
-      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3dvh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl kiosk-panel mx-auto flex flex-col items-center justify-center transition-all duration-500 scale-100 opacity-100 relative overflow-hidden">
+      <div className="rounded-3xl lg:rounded-[2.5rem] border border-white/10 bg-[#3a4354]/90 p-[3vh] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl kiosk-panel mx-auto flex flex-col items-center justify-center transition-all duration-500 scale-100 opacity-100 relative overflow-hidden">
         
         {/* Glow behind the error state */}
         <div className="absolute inset-0 rounded-3xl lg:rounded-[2.5rem] bg-rose-500 blur-3xl opacity-20" />
@@ -76,7 +76,7 @@ export default function KioskErrorPage() {
         </div>
       </div>
 
-      <div className="mt-[2dvh] shrink-0 flex flex-col items-center text-center transition-opacity duration-500 delay-200">
+      <div className="mt-[2vh] shrink-0 flex flex-col items-center text-center transition-opacity duration-500 delay-200">
         <div className="flex items-center gap-2 text-zinc-300 text-sm lg:text-base bg-black/30 border border-rose-500/30 rounded-full px-5 lg:px-6 py-2.5 lg:py-3 shadow-inner backdrop-blur-md">
           <div className="h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
           <span className="tracking-wide text-rose-300">
