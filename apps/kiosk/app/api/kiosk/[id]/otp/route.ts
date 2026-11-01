@@ -18,7 +18,8 @@ import { verifyOTP } from '@vaultprint/lib'
 //         | { valid: false, attempts_remaining, reason }
 //
 // The release is refused (503, OTP not consumed) while the print agent is
-// offline, so a customer's code is never spent on a dead printer.
+// offline or reports its printer not ready (no paper, unplugged), so a
+// customer's code is never spent on a printer that can't print.
 // ---------------------------------------------------------------------------
 
 const KIOSK_WRONG_ATTEMPT_LIMIT = 10
@@ -123,7 +124,7 @@ export async function POST(
   // ── Printer must be online before a job is released ───────────────────
   const { data: kiosk } = await supabase
     .from('kiosks')
-    .select('last_heartbeat')
+    .select('last_heartbeat, settings')
     .eq('id', kioskId)
     .single()
 
@@ -131,6 +132,25 @@ export async function POST(
   if (Date.now() - lastBeat > AGENT_ONLINE_WINDOW_MS) {
     return NextResponse.json(
       { valid: false, attempts_remaining: KIOSK_WRONG_ATTEMPT_LIMIT - wrongSoFar, reason: 'printer_offline' },
+      { status: 503 }
+    )
+  }
+
+  // Printer-reported state (USB agents): out of paper, firmware missing,
+  // unplugged → keep the code unused rather than release a job that fails
+  const printerState = (kiosk?.settings as { printer?: Record<string, unknown> } | null)?.printer
+  if (
+    printerState &&
+    typeof printerState.checked_at === 'string' &&
+    Date.now() - new Date(printerState.checked_at).getTime() < AGENT_ONLINE_WINDOW_MS &&
+    printerState.ready === false
+  ) {
+    return NextResponse.json(
+      {
+        valid: false,
+        attempts_remaining: KIOSK_WRONG_ATTEMPT_LIMIT - wrongSoFar,
+        reason: printerState.paper_empty === true ? 'paper_out' : 'printer_not_ready',
+      },
       { status: 503 }
     )
   }

@@ -36,7 +36,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse optional body
-  let body: { os_platform?: string; printer_name?: string; hotspot_active?: boolean } = {}
+  let body: {
+    os_platform?: string
+    printer_name?: string
+    hotspot_active?: boolean
+    printer?: Record<string, unknown>
+  } = {}
   try {
     body = await request.json()
   } catch {
@@ -69,17 +74,37 @@ export async function POST(request: NextRequest) {
     updatePayload.status = 'idle'
   }
 
+  const settings =
+    kiosk?.settings && typeof kiosk.settings === 'object' && !Array.isArray(kiosk.settings)
+      ? (kiosk.settings as Record<string, unknown>)
+      : {}
+
   // Mode 2 kiosks report hotspot status (Android only) — surfaced on the
   // fleet dashboard so a dead hotspot is visible remotely (PRD D2)
   if (typeof body.hotspot_active === 'boolean') {
-    const settings =
-      kiosk?.settings && typeof kiosk.settings === 'object' && !Array.isArray(kiosk.settings)
-        ? (kiosk.settings as Record<string, unknown>)
-        : {}
     updatePayload.settings = {
       ...settings,
       hotspot_active: body.hotspot_active,
       hotspot_checked_at: new Date().toISOString(),
+    }
+  }
+
+  // Printer state as probed by the agent (USB printers). The OTP route uses
+  // it to avoid releasing a job to a printer that can't print right now.
+  if (body.printer && typeof body.printer === 'object' && !Array.isArray(body.printer)) {
+    const p = body.printer
+    updatePayload.settings = {
+      ...settings,
+      ...((updatePayload.settings as Record<string, unknown> | undefined) ?? {}),
+      printer: {
+        present: p.present === true,
+        firmware_loaded: p.firmware_loaded === true,
+        ready: p.ready === true,
+        paper_empty: p.paper_empty === true,
+        error: p.error === true,
+        busy: p.busy === true,
+        checked_at: new Date().toISOString(),
+      },
     }
   }
 

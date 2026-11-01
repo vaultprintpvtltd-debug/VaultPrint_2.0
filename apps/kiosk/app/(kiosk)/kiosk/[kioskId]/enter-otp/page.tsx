@@ -67,7 +67,11 @@ export default function KioskEnterOTPPage() {
 
       setOtp('')
       triggerShake()
-      if (data.reason === 'printer_offline') {
+      if (data.reason === 'paper_out') {
+        setMessage('The printer is out of paper. Your code has NOT been used — please call staff to refill it.')
+      } else if (data.reason === 'printer_not_ready') {
+        setMessage('The printer is not ready. Your code has NOT been used — please try again shortly or contact staff.')
+      } else if (data.reason === 'printer_offline') {
         setMessage('The printer is offline right now. Your code has NOT been used — please try again shortly or contact staff.')
       } else if (data.reason === 'locked') {
         setMessage('Too many incorrect codes. Please wait a few minutes.')

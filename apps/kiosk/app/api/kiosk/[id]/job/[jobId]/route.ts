@@ -9,7 +9,10 @@ import { purgeJobFiles } from '@/lib/purge-files'
 // Updates status to 'completed' or 'failed'. A completed job's file is
 // deleted immediately; a failed one is kept 24h for operator review.
 //
-// Request body: { status: 'completed' | 'failed', error_message?: string }
+// Request body: { status: 'completed' | 'failed', error_message?: string,
+//                 evidence?: object }
+// evidence = what the agent knows (bytes sent, printer status, whether
+// completion was confirmed or inferred) — stored on the audit event.
 // ---------------------------------------------------------------------------
 
 function getAdminSupabase() {
@@ -31,7 +34,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Kiosk ID mismatch' }, { status: 403 })
   }
 
-  let body: { status?: string; error_message?: string }
+  let body: { status?: string; error_message?: string; evidence?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -39,6 +42,12 @@ export async function PATCH(
   }
 
   const { status, error_message } = body
+  // Small JSON object only — it is stored verbatim in the audit log
+  const evidence =
+    body.evidence && typeof body.evidence === 'object' && !Array.isArray(body.evidence) &&
+    JSON.stringify(body.evidence).length <= 4096
+      ? (body.evidence as Record<string, unknown>)
+      : undefined
 
   if (status !== 'completed' && status !== 'failed') {
     return NextResponse.json(
@@ -97,7 +106,10 @@ export async function PATCH(
     kiosk_id: kioskId,
     event: status === 'completed' ? 'print_completed' : 'print_failed',
     actor: 'kiosk_agent',
-    metadata: error_message ? { error: error_message } : {},
+    metadata: {
+      ...(error_message ? { error: error_message } : {}),
+      ...(evidence ? { evidence } : {}),
+    },
   })
 
   if (status === 'completed') {
