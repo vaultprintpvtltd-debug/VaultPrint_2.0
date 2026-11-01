@@ -38,6 +38,20 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  // ── Browser full-screen on touch (hides Chrome's address bar + tabs) ───
+  // Browsers only allow full-screen from a user gesture, and Back exits it,
+  // so every touch re-enters it. The box locks Chrome to this site anyway
+  // (agent/android/kiosk.sh).
+  useEffect(() => {
+    const enterFullscreen = () => {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+      }
+    }
+    document.addEventListener('pointerdown', enterFullscreen)
+    return () => document.removeEventListener('pointerdown', enterFullscreen)
+  }, [])
+
   // React hoists these into <head>
   const appHead = (
     <>
