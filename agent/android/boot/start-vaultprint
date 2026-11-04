@@ -1,0 +1,44 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# ---------------------------------------------------------------------------
+# Termux:Boot entry point — starts the VaultPrint print agent at every boot.
+# Install: copy to ~/.termux/boot/start-vaultprint (chmod 700) and open the
+# Termux:Boot app once. The agent's watchdog then locks the kiosk screen.
+#
+# Supervised: if the agent ever exits it is restarted after 5 s. Only one
+# copy runs (pid file), so a manual ~/vp-agent.sh can't start a second agent.
+# ---------------------------------------------------------------------------
+
+AGENT="$HOME/vaultprint/agent"
+LOGS="$AGENT/logs"
+PIDFILE="$AGENT/state/supervisor.pid"
+mkdir -p "$LOGS" "$AGENT/state"
+
+# Already supervised? (e.g. Termux:Boot fired twice)
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+  exit 0
+fi
+echo $$ > "$PIDFILE"
+
+# Keep Termux running while the screen is on and the box idles
+termux-wake-lock
+
+log() { echo "[$(date -Iseconds)] [boot] $*" >> "$LOGS/agent.log"; }
+
+# Wait up to 2 minutes for the network (Wi-Fi joins after boot)
+i=0
+until /system/bin/ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1 || [ $i -ge 60 ]; do
+  i=$((i + 1))
+  sleep 2
+done
+log "network wait finished after $((i * 2))s - starting agent"
+
+cd "$AGENT" || exit 1
+while true; do
+  # Keep the log bounded: rotate at 5 MB
+  if [ -f "$LOGS/agent.log" ] && [ "$(wc -c < "$LOGS/agent.log")" -gt 5242880 ]; then
+    mv "$LOGS/agent.log" "$LOGS/agent.log.1"
+  fi
+  node agent.js >> "$LOGS/agent.log" 2>&1
+  log "agent exited with code $? - restarting in 5s"
+  sleep 5
+done

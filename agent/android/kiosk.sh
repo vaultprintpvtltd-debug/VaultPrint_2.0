@@ -104,7 +104,18 @@ do_lock() {
   TASK=$(chrome_task)
   [ -n "$TASK" ] || { echo "chrome task not found"; return 3; }
   am task lock "$TASK" >/dev/null 2>&1
+
+  # Browsers only enter full-screen from a real tap: once the page has
+  # loaded, tap a non-interactive spot (the "How it works" heading)
+  sleep 8
+  tap_for_fullscreen
   echo "locked (chrome task $TASK)"
+}
+
+# 1920x1080 screen: left column heading/description — no button there on any
+# kiosk screen, with or without Chrome's toolbar showing
+tap_for_fullscreen() {
+  input tap 480 380
 }
 
 case "$1" in

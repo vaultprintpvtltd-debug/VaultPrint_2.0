@@ -74,6 +74,19 @@ Chrome is pinned (lock-task mode), restricted by managed policy to the kiosk sit
 only, the system bars are hidden and the screen stays on. The agent re-locks
 every 10 s if anything unpins it.
 
+**Start on boot:** install **Termux:Boot** from the same source as Termux
+(F-Droid here — the signing keys must match), open it once, then:
+
+```bash
+mkdir -p ~/.termux/boot && cp android/boot/start-vaultprint ~/.termux/boot/ && chmod 700 ~/.termux/boot/start-vaultprint
+su -c "dumpsys deviceidle whitelist +com.termux"   # no battery-optimisation prompt at boot
+```
+
+It waits for the network, then runs and supervises the agent (restart on
+exit, single instance, 5 MB log rotation); the agent's watchdog locks the
+screen and taps it into full screen. On the TX3 the boot broadcast reaches
+Termux:Boot ~80 s after boot, so the kiosk appears ~2 minutes after power-on.
+
 **Staff exit:** on the kiosk screen, press and hold the VaultPrint logo for
 5 seconds → staff PIN → the agent (127.0.0.1:4100) unlocks for maintenance. It
 re-locks automatically after 30 minutes, or immediately with `kiosk.sh lock`.
