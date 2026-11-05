@@ -145,8 +145,15 @@ case "$1" in
     [ -n "$(find $STATE -name maintenance -mmin +30 2>/dev/null)" ] && rm -f $STATE/maintenance
     [ -f $STATE/maintenance ] && exit 0
     [ -f $STATE/url ] || exit 0
-    [ "$(lock_mode)" = "NONE" ] || exit 0
-    do_lock
+    if [ "$(lock_mode)" = "NONE" ]; then
+      do_lock
+    else
+      # Still pinned, but the bars can come back on their own (this ROM's
+      # nav bar has its own show/hide toggle) — hide them again
+      [ "$(settings get global policy_control)" = "immersive.full=$CHROME" ] ||
+        settings put global policy_control "immersive.full=$CHROME"
+      set_navbar 0
+    fi
     ;;
   status)
     echo "lock mode:   $(lock_mode)"

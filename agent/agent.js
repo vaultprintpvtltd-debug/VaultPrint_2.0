@@ -8,7 +8,8 @@
 //   1. Heartbeat — POST /api/kiosk/heartbeat every 30s (+ printer state)
 //   2. Queue polling — GET /api/kiosk/[id]/queue every 3s (atomic claim)
 //   3. Print execution — backend chosen by PRINT_BACKEND:
-//        zjs-usb  Android/Termux + HP LaserJet 1020 (printers/zjs-usb.js)
+//        zjs-usb        Android/Termux + HP LaserJet 1020 (printers/zjs-usb.js)
+//        gutenprint-usb Android/Termux + Canon PIXMA G2010 (printers/gutenprint-usb.js)
 //        sumatra  Windows, SumatraPDF to an installed Windows printer
 //        fake     development only — explicit opt-in, never automatic
 //   4. Job completion — PATCH /api/kiosk/[id]/job/[jid] with evidence
@@ -28,6 +29,7 @@ const { exec, execFile } = require('child_process')
 const crypto = require('crypto')
 const http = require('http')
 const { ZjsUsbPrinter, PrinterError } = require('./printers/zjs-usb')
+const { GutenprintUsbPrinter } = require('./printers/gutenprint-usb')
 
 // ─── ENV VALIDATION ─────────────────────────────────────────────────────────
 
@@ -63,8 +65,9 @@ function fatal(message) {
 if (!KIOSK_ID) fatal('KIOSK_ID is not set in .env')
 if (!KIOSK_API_KEY) fatal('KIOSK_API_KEY is not set in .env')
 if (!KIOSK_API_BASE_URL) fatal('KIOSK_API_BASE_URL is not set in .env')
-if (!['zjs-usb', 'sumatra', 'fake'].includes(PRINT_BACKEND)) {
-  fatal(`No print backend for platform "${PLATFORM}". Set PRINT_BACKEND=zjs-usb|sumatra|fake`)
+const USB_BACKENDS = ['zjs-usb', 'gutenprint-usb']
+if (![...USB_BACKENDS, 'sumatra', 'fake'].includes(PRINT_BACKEND)) {
+  fatal(`No print backend for platform "${PLATFORM}". Set PRINT_BACKEND=zjs-usb|gutenprint-usb|sumatra|fake`)
 }
 
 // Startup guard: KIOSK_API_BASE_URL must contain "kiosk." in production.
@@ -83,13 +86,25 @@ const TEMP_DIR = path.join(__dirname, 'temp')
 fs.rmSync(TEMP_DIR, { recursive: true, force: true })
 fs.mkdirSync(TEMP_DIR, { recursive: true })
 
-const printer = PRINT_BACKEND === 'zjs-usb'
-  ? new ZjsUsbPrinter({
-      binDir: process.env.VP_BIN_DIR || path.join(os.homedir(), 'vaultprint', 'bin'),
+const VP_BIN_DIR = process.env.VP_BIN_DIR || path.join(os.homedir(), 'vaultprint', 'bin')
+function createPrinter() {
+  if (PRINT_BACKEND === 'zjs-usb') {
+    return new ZjsUsbPrinter({
+      binDir: VP_BIN_DIR,
       firmwarePath: process.env.VP_FIRMWARE || path.join(os.homedir(), 'vaultprint', 'firmware', 'hp_laserjet_1020.fw'),
       device: process.env.PRINTER_USB_ID || '03f0:2b17',
     })
-  : null
+  }
+  if (PRINT_BACKEND === 'gutenprint-usb') {
+    return new GutenprintUsbPrinter({
+      binDir: VP_BIN_DIR,
+      device: process.env.PRINTER_USB_ID || '04a9:183a',
+      driver: process.env.GUTENPRINT_DRIVER || 'bjc-G2000-series',
+    })
+  }
+  return null
+}
+const printer = createPrinter()
 
 // ─── LOGGING ────────────────────────────────────────────────────────────────
 
@@ -291,9 +306,9 @@ async function reportJobStatus(jobId, status, errorMessage = null, evidence = nu
   return false
 }
 
-/** Android / HP LaserJet 1020: render → firmware → send → wait → evidence. */
-async function printWithZjs(job, pdfPath) {
-  const zjsPath = path.join(TEMP_DIR, `job_${job.id}.zjs`)
+/** Android USB printers: (firmware) → render → send → wait → evidence. */
+async function printWithUsb(job, pdfPath) {
+  const zjsPath = path.join(TEMP_DIR, `job_${job.id}.prn`)
   try {
     await printer.ensureFirmware(log)
 
@@ -318,14 +333,16 @@ async function printWithZjs(job, pdfPath) {
     }
     journalSet(job.id, 'sent', { bytes_sent: sent })
 
-    const wait = await printer.waitForPrint(pages * copies, log)
+    const wait = await printer.waitForPrint(pages * copies, log, job)
     return {
-      confirmation: 'inferred', // no page counter on the 1020 — see printers/zjs-usb.js
+      confirmation: 'inferred', // no readable page counter — see printers/*.js
+      backend: PRINT_BACKEND,
       pages,
       copies,
       sheets: pages * copies,
       bytes_sent: sent,
       firmware: wait.final_status.firmware,
+      model: wait.final_status.model,
       waited_ms: wait.waited_ms,
       final_status: wait.final_status,
     }
@@ -344,8 +361,8 @@ async function processJob(job) {
     log(`Download complete.`)
 
     let evidence
-    if (PRINT_BACKEND === 'zjs-usb') {
-      evidence = await printWithZjs(job, tempFilePath)
+    if (USB_BACKENDS.includes(PRINT_BACKEND)) {
+      evidence = await printWithUsb(job, tempFilePath)
     } else if (PRINT_BACKEND === 'sumatra') {
       if (!PRINTER_NAME) throw new Error('PRINTER_NAME is not set in .env')
       const cmd = buildSumatraCommand(tempFilePath, job)
@@ -584,7 +601,7 @@ async function main() {
       fatal(err.message)
     }
     const state = await printer.probe()
-    log(`Printer:     present=${state.present} firmware=${state.firmware || 'not loaded'} ready=${state.ready}`)
+    log(`Printer:     present=${state.present} ${state.model ? 'model=' + state.model : 'firmware=' + (state.firmware || 'not loaded')} ready=${state.ready}`)
     if (state.present && !state.firmware_loaded) {
       try {
         await printer.ensureFirmware(log)

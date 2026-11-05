@@ -38,7 +38,7 @@ pm2 save    # persist across reboots
 |---|---|---|
 | Heartbeat | ✅ | `POST /api/kiosk/heartbeat` every 30s, plus the USB printer's state on Android (present / firmware / paper / error). |
 | Queue claim | ✅ | `GET /api/kiosk/[id]/queue` every 3s — atomic `claim_next_job`; one job at a time. |
-| Print — Android | ✅ | HP LaserJet 1020 over raw USB: Ghostscript → foo2zjs → `vp-usbprint` (`printers/zjs-usb.js`). Firmware uploaded automatically after every printer power-on. |
+| Print — Android | ✅ | HP LaserJet 1020 over raw USB: Ghostscript → foo2zjs → `vp-usbprint` (`printers/zjs-usb.js`). Firmware uploaded automatically after every printer power-on. Canon PIXMA G2010: Ghostscript → Gutenprint (`vp-gutenprint`) → `vp-usbprint` (`printers/gutenprint-usb.js`). |
 | Print — Windows | ✅ | SumatraPDF to an installed Windows printer. |
 | Completion evidence | ✅ | Every final status carries evidence. Android: `inferred` (all bytes accepted + printer healthy after the expected print time — the 1020 has no readable page counter). Windows: `spooled`. |
 | Crash safety | ✅ | `state/journal.json` records each job's stage; interrupted jobs are reported failed with whether pages may have printed — never reprinted automatically. |
@@ -63,6 +63,30 @@ HP's signed HPLIP plugin into `~/vaultprint/firmware/` (never commit it), and ru
 `npm install`. `.env` additionally needs `PRINT_BACKEND=zjs-usb` and
 `STAFF_PIN_SHA256` (SHA-256 hex of the staff PIN).
 
+### Canon PIXMA G2010 instead of the HP (`PRINT_BACKEND=gutenprint-usb`)
+
+The G2010 (`04a9:183a`, IEEE-1284 `CMD:BJRaster3,IVEC`) is driven by
+Gutenprint's *Canon G2000 series* driver, which is verified on this printer:
+
+```
+PDF ─ Ghostscript (pgmraw/ppmraw, A4, 300 dpi) ─▶ vp-gutenprint ─▶ vp-usbprint ─▶ USB
+```
+
+`vp-gutenprint` is a static armhf build. Build it on any x86-64 PC with Docker,
+then copy it to the box:
+
+```bash
+sh android/build-gutenprint.sh                        # → gutenprint-armhf.tgz
+tar xzf gutenprint-armhf.tgz -C ~/vaultprint          # → ~/vaultprint/gutenprint/
+cp android/vp-gutenprint.sh ~/vaultprint/bin/vp-gutenprint && chmod 700 ~/vaultprint/bin/vp-gutenprint
+```
+
+`.env`: `PRINT_BACKEND=gutenprint-usb`, `PRINTER_USB_ID=04a9:183a`,
+`PRINTER_NAME=Canon PIXMA G2010` (optional `GUTENPRINT_DRIVER`, default
+`bjc-G2000-series`). There's no firmware step. The kiosk's printer capabilities
+(`kiosks.config.printer`) must say `duplex: false`, because the G2010 can't print double-sided.
+Verified: B&W end to end (kiosk code → agent → paper). Colour: not yet verified.
+
 **Kiosk lock** (`android/kiosk.sh`, run as root):
 
 ```bash
@@ -71,8 +95,8 @@ su -c "sh android/kiosk.sh lock"      # status | unlock | ensure
 ```
 
 Chrome is pinned (lock-task mode), restricted by managed policy to the kiosk site
-only, the system bars are hidden and the screen stays on. The agent re-locks
-every 10 s if anything unpins it.
+only, the system bars are hidden and the screen stays on. Every 10 s the agent
+re-locks if anything unpins it, and hides the bars again if they come back.
 
 **Start on boot:** install **Termux:Boot** from the same source as Termux
 (F-Droid here — the signing keys must match), open it once, then:

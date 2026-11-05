@@ -52,8 +52,14 @@ function run(cmd, args, { input, timeoutMs = 60000 } = {}) {
     child.stderr.on('data', (d) => { stderr += d })
     child.on('error', (err) => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: String(err) }) })
     child.on('close', (code) => { clearTimeout(timer); resolve({ code, stdout, stderr }) })
-    if (input) fs.createReadStream(input).pipe(child.stdin)
-    else child.stdin.end()
+    // The child can exit before taking all its input (printer unplugged
+    // mid-send): that is EPIPE here, and its exit code says what happened
+    child.stdin.on('error', () => {})
+    if (input) {
+      const src = fs.createReadStream(input)
+      src.on('error', (err) => { stderr += String(err); child.kill('SIGKILL') })
+      src.pipe(child.stdin)
+    } else child.stdin.end()
   })
 }
 
