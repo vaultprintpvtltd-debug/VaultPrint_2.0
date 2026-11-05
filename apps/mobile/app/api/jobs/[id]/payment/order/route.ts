@@ -43,7 +43,7 @@ export async function POST(
       razorpay_order_id: job.razorpay_order_id,
       amount: Math.round(job.total_price * 100),
       currency: 'INR',
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+      key_id: process.env.RAZORPAY_KEY_ID!,
     })
   }
 
@@ -113,6 +113,6 @@ export async function POST(
     razorpay_order_id: order.id,
     amount: amountInPaise,
     currency: 'INR',
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+    key_id: process.env.RAZORPAY_KEY_ID!,
   })
 }
