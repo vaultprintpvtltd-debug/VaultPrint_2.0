@@ -106,6 +106,13 @@ export async function POST(request: NextRequest) {
         checked_at: new Date().toISOString(),
       },
     }
+    // One readable word for the kiosk screen's status pill (anon can read it)
+    updatePayload.printer_state =
+      p.busy === true ? 'printing'
+        : p.present !== true ? 'not_connected'
+          : p.paper_empty === true ? 'paper_out'
+            : p.ready === true ? 'ready'
+              : 'error'
   }
 
   // Update kiosk row

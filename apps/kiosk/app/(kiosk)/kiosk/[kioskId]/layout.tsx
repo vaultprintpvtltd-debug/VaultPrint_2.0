@@ -11,6 +11,26 @@ interface KioskInfo {
   name: string
   location: string | null
   status: string
+  last_heartbeat: string | null
+  printer_state: string | null
+}
+
+// Agent heartbeats every 30 s; older than this = kiosk offline
+const AGENT_ONLINE_WINDOW_MS = 2 * 60 * 1000
+
+/** Status pill text + colour from the agent's latest printer report. */
+function printerPill(info: KioskInfo): { label: string; tone: 'ok' | 'busy' | 'bad' } {
+  const fresh = info.last_heartbeat && Date.now() - new Date(info.last_heartbeat).getTime() < AGENT_ONLINE_WINDOW_MS
+  if (!fresh) return { label: 'Offline', tone: 'bad' }
+  switch (info.printer_state) {
+    case 'ready': return { label: 'Ready', tone: 'ok' }
+    case 'printing': return { label: 'Printing', tone: 'busy' }
+    case 'paper_out': return { label: 'Out of paper', tone: 'bad' }
+    case 'not_connected': return { label: 'Not connected', tone: 'bad' }
+    case 'error': return { label: 'Needs attention', tone: 'bad' }
+    default:
+      return info.status === 'printing' ? { label: 'Printing', tone: 'busy' } : { label: 'Ready', tone: 'ok' }
+  }
 }
 
 export default function KioskLayout({ children }: { children: React.ReactNode }) {
@@ -69,7 +89,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
         const supabase = createBrowserClient()
         const { data, error: fetchError } = await supabase
           .from('kiosks')
-          .select('name, location, status')
+          .select('name, location, status, last_heartbeat, printer_state')
           .eq('id', kioskId)
           .single()
 
@@ -87,6 +107,9 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
       }
     }
     fetchKioskInfo()
+    // Keep the printer status pill current
+    const refresh = setInterval(fetchKioskInfo, 15000)
+    return () => clearInterval(refresh)
   }, [kioskId])
 
   // ── Live clock (updates every second) ──────────────────────────────────
@@ -184,15 +207,15 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
             {/* Status Pill */}
             <div className="flex items-center gap-2.5 lg:gap-3 rounded-full border border-white/5 bg-black/40 px-6 lg:px-8 py-2.5 lg:py-3 shadow-inner">
               <div
-                className={`h-2.5 w-2.5 lg:h-3 lg:w-3 rounded-full ${kioskInfo.status === 'online' || kioskInfo.status === 'idle'
+                className={`h-2.5 w-2.5 lg:h-3 lg:w-3 rounded-full ${printerPill(kioskInfo).tone === 'ok'
                   ? 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]'
-                  : kioskInfo.status === 'printing'
+                  : printerPill(kioskInfo).tone === 'busy'
                     ? 'bg-amber-400 animate-pulse'
                     : 'bg-red-500'
                   }`}
               />
               <span className="text-xs lg:text-sm font-semibold tracking-wider text-zinc-300 uppercase">
-                PRINTER : {kioskInfo.status}
+                PRINTER : {printerPill(kioskInfo).label}
               </span>
             </div>
 

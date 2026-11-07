@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: job, error } = await supabase
     .from('print_jobs')
-    .select('*')
+    .select('*, kiosks(config)') // one round trip for job + kiosk config
     .eq('session_id', sessionId)
     .single()
 
@@ -36,11 +36,8 @@ export async function GET(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
-  const { data: kiosk } = await supabase
-    .from('kiosks')
-    .select('config')
-    .eq('id', job.kiosk_id)
-    .single()
+  const kiosk = job.kiosks as { config?: unknown } | null
+  const realPayment = typeof job.razorpay_payment_id === 'string' && job.razorpay_payment_id.startsWith('pay_')
 
   return NextResponse.json({
     status: job.status,
@@ -57,6 +54,9 @@ export async function GET(
     price_per_page: job.price_per_page,
     billable_pages: job.billable_pages,
     total_price: job.total_price,
+    // Refund state for jobs that ended without a print (migration 008)
+    refund_status: job.refund_status ?? (realPayment ? null : 'not_applicable'),
+    refund_amount: job.refund_amount ?? null,
     is_collated: job.is_collated,
     pages_per_sheet: job.pages_per_sheet,
     page_order: job.page_order,

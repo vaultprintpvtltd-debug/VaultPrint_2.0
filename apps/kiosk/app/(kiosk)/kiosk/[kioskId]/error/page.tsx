@@ -70,7 +70,7 @@ export default function KioskErrorPage() {
               Something went wrong
             </h3>
             <p className="text-sm text-zinc-400 leading-relaxed max-w-[250px]">
-              Your payment will be refunded within 24 hours.
+              If you paid, the full amount is refunded automatically to your original payment method.
             </p>
           </div>
         </div>

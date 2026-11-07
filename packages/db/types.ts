@@ -21,6 +21,7 @@ export type KioskRow = {
   printer_name: string
   os_platform: string | null
   last_heartbeat: string | null
+  printer_state: 'ready' | 'printing' | 'paper_out' | 'not_connected' | 'error' | null // migration 008
   api_key_hash: string
   settings: Json | null
   config: Json
@@ -49,6 +50,13 @@ export type PrintJobRow = {
   pos_transaction_ref: string | null
   pos_card_last4: string | null
   pos_client_amount: number | null
+  // Automatic refunds (migration 008)
+  refund_status: 'pending' | 'processed' | 'failed' | 'not_auto' | 'not_applicable' | null
+  refund_id: string | null
+  refund_amount: number | null
+  refund_attempts: number
+  refund_error: string | null
+  refunded_at: string | null
   otp_hash: string | null
   otp_expires_at: string | null
   otp_attempts: number

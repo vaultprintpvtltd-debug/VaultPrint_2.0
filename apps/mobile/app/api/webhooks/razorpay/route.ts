@@ -121,6 +121,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (!updated || updated.length === 0) {
+    // Money arrived after the job had already expired (slow UPI confirmation):
+    // record the payment so the refund sweep (/api/cron/refunds) returns it
+    if (job.status === 'expired' || job.status === 'failed') {
+      await supabase
+        .from('print_jobs')
+        .update({ razorpay_payment_id: paymentId })
+        .eq('id', job.id)
+        .is('razorpay_payment_id', null)
+      return NextResponse.json({ ok: true, skipped: true, reason: 'late_payment_refund_due' })
+    }
     return NextResponse.json({ ok: true, skipped: true, reason: 'already_processed' })
   }
 

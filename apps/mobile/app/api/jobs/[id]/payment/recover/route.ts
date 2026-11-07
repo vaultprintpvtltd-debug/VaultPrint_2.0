@@ -11,12 +11,16 @@ import { createRazorpayClient, generateOTP, hashOTP } from '@vaultprint/lib'
 // /verify) is lost. The payment is then confirmed SERVER-SIDE by asking
 // Razorpay for the order's captured payments; no client signature needed.
 //
-// Issues an OTP only while none has been issued (same rule as /verify), so
-// a code can never be regenerated once shown.
+// Also re-issues the code for a job that is paid but not yet released at the
+// kiosk: on Android the page that showed it is often reloaded or replaced
+// (UPI app switch), and the code is stored only as a hash. The new code
+// replaces the old one; the session id (an unguessable UUID the customer
+// already holds) is the capability, exactly as for paying. Re-issuing never
+// extends the refund deadline beyond the original expiry (min. 5 minutes).
 //
 // Response: { otp, expires_at }      — code issued
 //           { paid: false }          — Razorpay has no captured payment yet
-//           409                      — code already issued / job released
+//           409                      — job already released / finished
 // ---------------------------------------------------------------------------
 
 function getAdminSupabase() {
@@ -42,7 +46,7 @@ export async function POST(
 
   const { data: job, error: jobError } = await supabase
     .from('print_jobs')
-    .select('id, kiosk_id, status, razorpay_order_id, razorpay_payment_id, otp_hash, total_price')
+    .select('id, kiosk_id, status, razorpay_order_id, razorpay_payment_id, otp_hash, otp_expires_at, total_price')
     .eq('session_id', sessionId)
     .single()
 
@@ -50,8 +54,9 @@ export async function POST(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
-  const needsCode =
-    job.status === 'payment_pending' || (job.status === 'paid' && !job.otp_hash)
+  const needsCode = job.status === 'payment_pending' || job.status === 'paid'
+  // Paid and a code was already shown once → replace it
+  const reissue = job.status === 'paid' && !!job.otp_hash && !!job.razorpay_payment_id
 
   if (!needsCode) {
     return NextResponse.json(
@@ -87,9 +92,13 @@ export async function POST(
   // ── Issue the OTP — atomic, same guard as /verify ─────────────────────
   const otp = generateOTP()
   const otpHash = await hashOTP(otp)
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  const fresh = Date.now() + 15 * 60 * 1000
+  const original = job.otp_expires_at ? new Date(job.otp_expires_at).getTime() : fresh
+  const expiresAt = new Date(
+    reissue ? Math.max(original, Date.now() + 5 * 60 * 1000) : fresh
+  ).toISOString()
 
-  const { data: updated, error: updateError } = await supabase
+  let update = supabase
     .from('print_jobs')
     .update({
       razorpay_payment_id: paymentId,
@@ -99,8 +108,10 @@ export async function POST(
       status: 'paid',
     })
     .eq('id', job.id)
-    .or('status.eq.payment_pending,and(status.eq.paid,otp_hash.is.null)')
-    .select('id')
+  update = reissue
+    ? update.eq('status', 'paid').eq('otp_hash', job.otp_hash)
+    : update.or('status.eq.payment_pending,and(status.eq.paid,otp_hash.is.null)')
+  const { data: updated, error: updateError } = await update.select('id')
 
   if (updateError) {
     return NextResponse.json({ error: 'Failed to issue code' }, { status: 500 })
@@ -125,7 +136,7 @@ export async function POST(
     kiosk_id: job.kiosk_id,
     event: 'otp_generated',
     actor: 'system',
-    metadata: { expires_at: expiresAt, via: 'recover' },
+    metadata: { expires_at: expiresAt, via: reissue ? 'reissue' : 'recover' },
   })
 
   return NextResponse.json({ otp, expires_at: expiresAt })

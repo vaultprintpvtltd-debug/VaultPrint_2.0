@@ -1,14 +1,21 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 // ---------------------------------------------------------------------------
 // /payment/[sessionId] — Payment Page
+//
+// Android: paying in a UPI app often reloads this page or drops Razorpay's
+// success callback. So the page never relies on the callback alone — on
+// load, on return to the tab, and on modal close it asks the server, which
+// checks with Razorpay and (re-)issues the code. An already-paid session is
+// never offered "Pay" again.
 // ---------------------------------------------------------------------------
 
 interface RazorpayInstance {
   open: () => void
+  on?: (event: string, cb: (response: unknown) => void) => void
 }
 interface RazorpayConstructor {
   new (options: Record<string, unknown>): RazorpayInstance
@@ -20,6 +27,7 @@ declare global {
 }
 
 interface JobDetails {
+  status: string
   file_name: string | null
   total_pages: number | null
   color_mode: string
@@ -31,6 +39,23 @@ interface JobDetails {
   total_price: number
 }
 
+interface Order {
+  razorpay_order_id: string
+  amount: number
+  currency: string
+  key_id: string
+}
+
+// Order-route codes meaning "can't pay right now" — no point retrying at once
+const BLOCKING_CODES = ['printer_offline', 'paper_out', 'printer_not_ready', 'expired', 'not_customized']
+
+/** Persist the code where any tab of this browser can find it again. */
+function saveCode(sessionId: string, otp: string, expires_at: string) {
+  const value = JSON.stringify({ otp, expires_at })
+  try { localStorage.setItem(`vp_otp_${sessionId}`, value) } catch {}
+  try { sessionStorage.setItem(`vp_otp_${sessionId}`, value) } catch {}
+}
+
 export default function PaymentPage() {
   const params = useParams<{ sessionId: string }>()
   const router = useRouter()
@@ -40,133 +65,186 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blocked, setBlocked] = useState(false)
+  const orderRef = useRef<Order | null>(null)
+  const leavingRef = useRef(false)
 
-  // Payment confirmed by the SERVER with Razorpay (no browser callback
-  // needed): mobile UPI often leaves the page, losing Razorpay's handler.
+  // Ask the server (which asks Razorpay) for the code. Works without
+  // Razorpay's browser callback, and re-issues the code for a paid job.
   const recoverCode = useCallback(async (): Promise<boolean> => {
+    if (leavingRef.current) return true
     try {
       const res = await fetch(`/api/jobs/${sessionId}/payment/recover`, { method: 'POST' })
       if (!res.ok) return false
       const data = await res.json()
       if (!data.otp) return false
-      sessionStorage.setItem(`vp_otp_${sessionId}`, JSON.stringify({ otp: data.otp, expires_at: data.expires_at }))
-      router.push(`/otp/${sessionId}`)
+      saveCode(sessionId, data.otp, data.expires_at)
+      leavingRef.current = true
+      router.replace(`/otp/${sessionId}`)
       return true
     } catch {
       return false
     }
   }, [sessionId, router])
 
-  // Returning from a UPI app / reopened page: already paid? → show the code
-  useEffect(() => {
-    recoverCode()
-    const onVisible = () => { if (document.visibilityState === 'visible') recoverCode() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [recoverCode])
+  /** Create (or reuse) the Razorpay order. Never throws. */
+  const prepareOrder = useCallback(async (): Promise<Order | null> => {
+    if (orderRef.current) return orderRef.current
+    try {
+      const res = await fetch(`/api/jobs/${sessionId}/payment/order`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        orderRef.current = data as Order
+        setError(null)
+        setBlocked(false)
+        return orderRef.current
+      }
+      if (data.code === 'already_paid') {
+        if (!(await recoverCode())) {
+          leavingRef.current = true
+          router.replace(`/otp/${sessionId}`)
+        }
+        return null
+      }
+      setError(data.error || 'Could not start the payment. Please try again.')
+      setBlocked(BLOCKING_CODES.includes(data.code))
+      return null
+    } catch {
+      setError('Network problem — please check your connection and try again.')
+      return null
+    }
+  }, [sessionId, recoverCode, router])
 
-  // Load Razorpay script
+  // Load Razorpay's checkout script once
   useEffect(() => {
+    if (window.Razorpay || document.querySelector('script[data-rzp]')) return
     const script = document.createElement('script')
     script.src = 'https://checkout.razorpay.com/v1/checkout.js'
     script.async = true
+    script.dataset.rzp = '1'
     document.body.appendChild(script)
-    return () => { document.body.removeChild(script) }
   }, [])
 
-  // Fetch job details
+  // Load the job. Paid / finished sessions go to the right screen; otherwise
+  // the order is created in the background so "Pay" opens instantly.
   useEffect(() => {
+    let cancelled = false
     async function load() {
       try {
         const res = await fetch(`/api/jobs/${sessionId}/status`)
-        if (res.ok) {
-          const data = await res.json()
-          setJob(data)
-        } else {
-          setError('Failed to load session details.')
+        if (!res.ok) {
+          if (!cancelled) setError('Could not load this print session. Please scan the kiosk QR code again.')
+          return
         }
+        const data: JobDetails = await res.json()
+        if (cancelled) return
+        setJob(data)
+
+        if (data.status === 'paid') {
+          if (!(await recoverCode())) router.replace(`/otp/${sessionId}`)
+          return
+        }
+        if (['queued', 'printing', 'failed'].includes(data.status)) {
+          router.replace(`/otp/${sessionId}`)
+          return
+        }
+        if (data.status === 'completed') {
+          router.replace(`/done/${sessionId}`)
+          return
+        }
+        // Returning from a UPI app / reopened page: maybe already paid
+        if (data.status === 'payment_pending' && (await recoverCode())) return
+        await prepareOrder()
       } catch {
-        setError('Network error.')
+        if (!cancelled) setError('Network problem — please check your connection and try again.')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      setLoading(false)
     }
     load()
-  }, [sessionId])
+    return () => { cancelled = true }
+  }, [sessionId, recoverCode, prepareOrder, router])
+
+  // Kiosk offline / out of paper: re-check every 10 s, so "Pay" comes back
+  // by itself as soon as staff fix the printer
+  useEffect(() => {
+    if (!blocked) return
+    const timer = setInterval(() => { prepareOrder() }, 10000)
+    return () => clearInterval(timer)
+  }, [blocked, prepareOrder])
+
+  // Back from a UPI app (tab visible again / page restored)? Check payment.
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState === 'visible' && orderRef.current) recoverCode()
+    }
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('pageshow', check)
+    return () => {
+      document.removeEventListener('visibilitychange', check)
+      window.removeEventListener('pageshow', check)
+    }
+  }, [recoverCode])
 
   async function handlePay() {
     setPaying(true)
     setError(null)
 
-    try {
-      // 1. Create order
-      const orderRes = await fetch(`/api/jobs/${sessionId}/payment/order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (!orderRes.ok) {
-        const data = await orderRes.json()
-        throw new Error(data.error || 'Failed to create order')
-      }
-
-      const { razorpay_order_id, amount, currency, key_id } = await orderRes.json()
-
-      // 2. Open Razorpay checkout
-      const options = {
-        key: key_id,
-        amount,
-        currency,
-        name: 'VaultPrint',
-        description: 'Document Printing',
-        order_id: razorpay_order_id,
-        handler: async function (response: {
-          razorpay_order_id: string
-          razorpay_payment_id: string
-          razorpay_signature: string
-        }) {
-          // 3. Verify payment
-          try {
-            const verifyRes = await fetch(`/api/jobs/${sessionId}/payment/verify`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            })
-
-            if (!verifyRes.ok) {
-              const data = await verifyRes.json()
-              throw new Error(data.error || 'Verification failed')
-            }
-
-            const { otp, expires_at } = await verifyRes.json()
-            sessionStorage.setItem(`vp_otp_${sessionId}`, JSON.stringify({ otp, expires_at }))
-            router.push(`/otp/${sessionId}`)
-          } catch (err) {
-            // Signature check failed or the request didn't arrive — ask
-            // Razorpay directly before showing an error
-            if (await recoverCode()) return
-            setError(err instanceof Error ? err.message : 'Payment verification failed')
-            setPaying(false)
-          }
-        },
-        modal: {
-          // Closed after paying in a UPI app? Check before giving up
-          ondismiss: async () => {
-            if (!(await recoverCode())) setPaying(false)
-          },
-        },
-        theme: { color: '#3B5BDB' },
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.open()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment failed')
+    const order = await prepareOrder()
+    if (!order) { setPaying(false); return }
+    if (!window.Razorpay) {
+      setError('The payment window is still loading — please tap Pay again in a moment.')
       setPaying(false)
+      return
     }
+
+    const rzp = new window.Razorpay({
+      key: order.key_id,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'VaultPrint',
+      description: 'Document Printing',
+      order_id: order.razorpay_order_id,
+      // Don't ask for phone / email. Razorpay honours this once "optional
+      // contact details" is enabled on the account.
+      hidden: { contact: true, email: true },
+      readonly: { contact: true, email: true },
+      handler: async function (response: {
+        razorpay_order_id: string
+        razorpay_payment_id: string
+        razorpay_signature: string
+      }) {
+        try {
+          const verifyRes = await fetch(`/api/jobs/${sessionId}/payment/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(response),
+          })
+          if (!verifyRes.ok) throw new Error('Verification failed')
+          const { otp, expires_at } = await verifyRes.json()
+          saveCode(sessionId, otp, expires_at)
+          leavingRef.current = true
+          router.replace(`/otp/${sessionId}`)
+        } catch {
+          // The callback's request failed — ask Razorpay directly
+          if (await recoverCode()) return
+          setError('We could not confirm your payment yet. If money was deducted, stay on this page — your code will appear, or the amount is refunded automatically.')
+          setPaying(false)
+        }
+      },
+      modal: {
+        // Closed after paying in a UPI app? Check before giving up
+        ondismiss: async () => {
+          if (!(await recoverCode())) setPaying(false)
+        },
+      },
+      theme: { color: '#3B5BDB' },
+    })
+    rzp.on?.('payment.failed', () => {
+      setError('The payment did not go through and no money was taken. Please try again.')
+      setPaying(false)
+    })
+    rzp.open()
   }
 
   const steps = [
@@ -186,7 +264,7 @@ export default function PaymentPage() {
 
   return (
     <div className="flex flex-col flex-1 w-full max-w-lg mx-auto relative h-full">
-      
+
       {/* Mobile Stepper */}
       <div className="mt-2 mb-2 px-2 shrink-0">
         <div className="flex items-center justify-between relative">
@@ -194,10 +272,10 @@ export default function PaymentPage() {
           {steps.map((step) => (
             <div key={step.id} className="relative z-10 flex flex-col items-center gap-2">
               <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-colors ${
-                step.active 
-                  ? 'bg-brand-blue text-white shadow-md ring-4 ring-white/50' 
-                  : step.id < 3 
-                    ? 'bg-emerald-500 text-white' 
+                step.active
+                  ? 'bg-brand-blue text-white shadow-md ring-4 ring-white/50'
+                  : step.id < 3
+                    ? 'bg-emerald-500 text-white'
                     : 'bg-white text-zinc-400 border border-zinc-200'
               }`}>
                 {step.id < 3 ? '✓' : step.id}
@@ -212,16 +290,20 @@ export default function PaymentPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto pb-32 no-scrollbar px-1 mt-6">
-        
+
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-50/80 backdrop-blur-md px-4 py-4 shadow-sm flex flex-col gap-3">
-            <span className="text-sm text-red-600 font-bold">{error}</span>
-            <button 
-              onClick={handlePay} 
-              className="bg-red-100 text-red-700 py-2 rounded-xl text-xs font-bold hover:bg-red-200 transition-colors"
-            >
-              Retry Payment
-            </button>
+          <div className={`mb-6 rounded-2xl border px-4 py-4 shadow-sm flex flex-col gap-3 backdrop-blur-md ${
+            blocked ? 'border-amber-500/20 bg-amber-50/80' : 'border-red-500/20 bg-red-50/80'
+          }`}>
+            <span className={`text-sm font-bold ${blocked ? 'text-amber-700' : 'text-red-600'}`}>{error}</span>
+            {!blocked && (
+              <button
+                onClick={handlePay}
+                className="bg-red-100 text-red-700 py-2 rounded-xl text-xs font-bold hover:bg-red-200 transition-colors"
+              >
+                Try again
+              </button>
+            )}
           </div>
         )}
 
@@ -229,7 +311,7 @@ export default function PaymentPage() {
         {job && (
           <div className="flex flex-col bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] rounded-[2rem] p-6 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/30 to-transparent pointer-events-none rounded-t-[2rem]"></div>
-            
+
             <h2 className="text-xl font-black text-navy mb-6 relative z-10">Order Summary</h2>
 
             <div className="space-y-4 relative z-10">
@@ -279,12 +361,15 @@ export default function PaymentPage() {
                   <div className="flex items-end justify-between mt-4">
                     <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Total</span>
                     <span className="text-4xl font-black text-brand-blue">
-                      ₹{job.total_price?.toFixed(2)}
+                      ₹{Number(job.total_price)?.toFixed(2)}
                     </span>
                   </div>
                 </div>
               </div>
 
+              <p className="text-[11px] font-semibold text-zinc-500 text-center pt-1">
+                If your print doesn&apos;t come out, the full amount is refunded automatically.
+              </p>
             </div>
           </div>
         )}
@@ -295,11 +380,11 @@ export default function PaymentPage() {
       <div className="absolute bottom-0 left-0 w-full p-4 z-50">
         <div className="bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_-8px_30px_0_rgba(31,38,135,0.1)] rounded-3xl p-4 flex flex-col relative overflow-hidden">
            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/40 to-transparent pointer-events-none rounded-t-3xl"></div>
-           
+
            <div className="flex flex-col relative z-10">
              <button
                 onClick={handlePay}
-                disabled={paying || !job}
+                disabled={paying || !job || blocked}
                 className="w-full bg-navy text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-navy/20 hover:bg-zinc-800 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
               >
                 {paying ? (
@@ -309,7 +394,7 @@ export default function PaymentPage() {
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    Pay ₹{job?.total_price?.toFixed(2)}
+                    Pay ₹{Number(job?.total_price ?? 0).toFixed(2)}
                   </>
                 )}
               </button>

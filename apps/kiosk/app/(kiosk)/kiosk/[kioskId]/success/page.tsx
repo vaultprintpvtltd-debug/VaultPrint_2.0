@@ -28,6 +28,8 @@ function SuccessContent() {
 
   const isCompleted = status === 'completed'
   const isFailed = status === 'failed' || status === 'expired'
+  const finishedRef = useRef(false)
+  useEffect(() => { finishedRef.current = isCompleted || isFailed }, [isCompleted, isFailed])
 
   // 1. Fetch Job Info
   useEffect(() => {
@@ -49,6 +51,11 @@ function SuccessContent() {
       }
     }
     fetchJob()
+    // Backup for a missed realtime update: poll until the job is finished
+    const poll = setInterval(() => {
+      if (finishedRef.current) clearInterval(poll)
+      else fetchJob()
+    }, 3000)
 
     // Listen for changes
     const channel = supabase.channel(`job-${jobId}`)
@@ -60,7 +67,7 @@ function SuccessContent() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { clearInterval(poll); supabase.removeChannel(channel) }
   }, [jobId])
 
   // 2. GSAP completion animation (pure side-effect — the countdown is started
@@ -153,7 +160,7 @@ function SuccessContent() {
               {isCompleted
                 ? 'Collect your document from the tray below.'
                 : isFailed
-                  ? 'Something went wrong with your print. Please contact staff — you will not be charged twice.'
+                  ? 'Your print could not be completed. The full amount is being refunded automatically to your original payment method.'
                   : 'Please wait while your document is being printed.'}
             </p>
           </div>

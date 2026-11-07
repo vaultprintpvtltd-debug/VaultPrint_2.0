@@ -9,7 +9,33 @@ import { createRazorpayClient } from '@vaultprint/lib'
 // Updates job status to 'payment_pending' and stores razorpay_order_id.
 //
 // Response: { razorpay_order_id, amount, currency, key_id }
+//           409 { code: 'already_paid' }     — page should fetch the code
+//           503 { code: 'printer_offline' | 'paper_out' | 'printer_not_ready' }
+//               — no order while the kiosk can't print (nobody pays for a
+//                 print that can't happen)
 // ---------------------------------------------------------------------------
+
+// Same window the kiosk's code route uses for "agent online"
+const AGENT_ONLINE_WINDOW_MS = 2 * 60 * 1000
+
+interface KioskRow {
+  last_heartbeat: string | null
+  settings: { printer?: { ready?: boolean; paper_empty?: boolean; checked_at?: string } } | null
+}
+
+/** null when the kiosk can print right now, else a reason code + message. */
+function printerProblem(kiosk: KioskRow | null): { code: string; error: string } | null {
+  if (!kiosk?.last_heartbeat || Date.now() - new Date(kiosk.last_heartbeat).getTime() > AGENT_ONLINE_WINDOW_MS) {
+    return { code: 'printer_offline', error: 'This kiosk is offline right now. Please try again in a few minutes — you have not been charged.' }
+  }
+  const p = kiosk.settings?.printer
+  if (p && p.ready === false) {
+    return p.paper_empty
+      ? { code: 'paper_out', error: 'The kiosk printer is out of paper. Please ask the staff to refill it — you have not been charged.' }
+      : { code: 'printer_not_ready', error: 'The kiosk printer is not ready right now. Please try again shortly — you have not been charged.' }
+  }
+  return null
+}
 
 function getAdminSupabase() {
   return createClient(
@@ -29,13 +55,24 @@ export async function POST(
   // 1. Fetch job
   const { data: job, error: jobError } = await supabase
     .from('print_jobs')
-    .select('id, session_id, total_price, status, razorpay_order_id')
+    .select('id, session_id, total_price, status, razorpay_order_id, kiosks(last_heartbeat, settings)')
     .eq('session_id', sessionId)
     .single()
 
   if (jobError || !job) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
+
+  // Already paid (e.g. the page reloaded after a UPI app): show the code
+  if (['paid', 'queued', 'printing', 'completed'].includes(job.status)) {
+    return NextResponse.json(
+      { error: 'This order is already paid.', code: 'already_paid', status: job.status },
+      { status: 409 }
+    )
+  }
+
+  const problem = printerProblem(job.kiosks as unknown as KioskRow | null)
+  if (problem) return NextResponse.json(problem, { status: 503 })
 
   // Idempotent: if already has an order, return it
   if (job.razorpay_order_id && job.status === 'payment_pending') {
@@ -49,7 +86,12 @@ export async function POST(
 
   if (job.status !== 'customized') {
     return NextResponse.json(
-      { error: `Cannot create order in "${job.status}" status. Customize settings first.` },
+      {
+        error: job.status === 'expired'
+          ? 'This print session has expired. Please scan the kiosk QR code again.'
+          : 'Please choose your print settings first.',
+        code: job.status === 'expired' ? 'expired' : 'not_customized',
+      },
       { status: 409 }
     )
   }

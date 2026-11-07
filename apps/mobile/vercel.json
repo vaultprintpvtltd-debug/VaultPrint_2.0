@@ -1,5 +1,8 @@
 {
     "buildCommand": "cd ../.. && pnpm --filter @vaultprint/mobile run build",
     "installCommand": "cd ../.. && pnpm install",
-    "framework": "nextjs"
+    "framework": "nextjs",
+    "regions": [
+        "bom1"
+    ]
 }
