@@ -87,11 +87,21 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     const fetchKioskInfo = async () => {
       try {
         const supabase = createBrowserClient()
-        const { data, error: fetchError } = await supabase
+        let { data, error: fetchError } = await supabase
           .from('kiosks')
           .select('name, location, status, last_heartbeat, printer_state')
           .eq('id', kioskId)
           .single()
+        // Database without migration 008 (no printer_state column yet)
+        if (fetchError) {
+          const fallback = await supabase
+            .from('kiosks')
+            .select('name, location, status, last_heartbeat')
+            .eq('id', kioskId)
+            .single()
+          data = fallback.data ? { ...fallback.data, printer_state: null } : null
+          fetchError = fallback.error
+        }
 
         if (fetchError || !data) {
           setError('Kiosk not found. Please check the kiosk ID.')

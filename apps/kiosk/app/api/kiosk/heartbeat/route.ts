@@ -116,10 +116,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Update kiosk row
-  const { error: updateError } = await supabase
+  let { error: updateError } = await supabase
     .from('kiosks')
     .update(updatePayload)
     .eq('id', kioskId)
+
+  // Database without migration 008 (no printer_state column yet): never let
+  // that take the kiosk offline — save the rest of the heartbeat
+  if (updateError && 'printer_state' in updatePayload) {
+    delete updatePayload.printer_state
+    ;({ error: updateError } = await supabase
+      .from('kiosks')
+      .update(updatePayload)
+      .eq('id', kioskId))
+  }
 
   if (updateError) {
     console.error('Heartbeat update failed:', updateError)
