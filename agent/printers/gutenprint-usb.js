@@ -25,9 +25,10 @@ const { PrinterError } = require('./zjs-usb')
 // 300 dpi input keeps text sharp at a quarter of 600 dpi's work on the box.
 const RES = 300
 const DIM = '2480x3508' // A4 at 300 dpi
-// G2010 ISO speed: ~8.8 ipm black, ~5 ipm colour, plus first-page warm-up
-const SECONDS_PER_PAGE = { bw: 8, colour: 14 }
-const WARMUP_SECONDS = 25
+// After the last byte is accepted the printer still finishes what it holds
+// in its buffer (an inkjet takes data only as fast as it prints)
+const TAIL_SECONDS = 15
+const TAIL_SECONDS_PER_SHEET = 2 // buffered pages, counted up to 5
 
 /** Run a command; resolve { code, stdout, stderr }. Never rejects on exit code. */
 function run(cmd, args, { input, timeoutMs = 60000 } = {}) {
@@ -105,69 +106,119 @@ class GutenprintUsbPrinter {
     return state
   }
 
-  /**
-   * Render a PDF to a printer job file. Streams Ghostscript's pages straight
-   * into vp-gutenprint (constant memory); vp-gutenprint reports the page count.
-   */
-  render(pdfPath, job, outPath) {
-    return new Promise((resolve, reject) => {
-      const colour = job.color_mode === 'colour'
-      const gsArgs = [
-        '-q', '-dBATCH', '-dSAFER', '-dNOPAUSE', '-dQUIET',
-        '-sstdout=%stderr', // keep PostScript chatter out of the raster stream
-        `-sDEVICE=${colour ? 'ppmraw' : 'pgmraw'}`, `-r${RES}`, `-g${DIM}`,
-        '-sPAPERSIZE=a4', '-dFIXEDMEDIA', '-dPDFFitPage',
-        '-dTextAlphaBits=4', '-dGraphicsAlphaBits=4',
-      ]
-      if (job.pages_to_print && job.pages_to_print !== 'all') {
-        if (!/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(job.pages_to_print)) {
-          return reject(new PrinterError('INVALID_PAGE_RANGE', `Invalid page range "${job.pages_to_print}"`))
-        }
-        gsArgs.push(`-sPageList=${job.pages_to_print}`)
+  gsArgs(pdfPath, job) {
+    const colour = job.color_mode === 'colour'
+    const args = [
+      '-q', '-dBATCH', '-dSAFER', '-dNOPAUSE', '-dQUIET',
+      '-sstdout=%stderr', // keep PostScript chatter out of the raster stream
+      `-sDEVICE=${colour ? 'ppmraw' : 'pgmraw'}`, `-r${RES}`, `-g${DIM}`,
+      '-sPAPERSIZE=a4', '-dFIXEDMEDIA', '-dPDFFitPage',
+      '-dTextAlphaBits=4', '-dGraphicsAlphaBits=4',
+    ]
+    if (job.pages_to_print && job.pages_to_print !== 'all') {
+      if (!/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(job.pages_to_print)) {
+        throw new PrinterError('INVALID_PAGE_RANGE', `Invalid page range "${job.pages_to_print}"`)
       }
-      gsArgs.push('-sOutputFile=-', '--', pdfPath)
+      args.push(`-sPageList=${job.pages_to_print}`)
+    }
+    args.push('-sOutputFile=-', '--', pdfPath)
+    return args
+  }
 
-      const gpArgs = ['-d', this.driver, '-m', colour ? 'Color' : 'BW', '-s', 'A4', '-t', 'Plain']
+  /**
+   * Ghostscript → vp-gutenprint, written to outPath and — when `toPrinter` —
+   * streamed to the printer at the same time, so printing starts with the
+   * first page instead of after the whole document is rendered. Both
+   * destinations take the data at the pace of the slower one (the printer).
+   * Resolves { pages, bytes, sent }.
+   */
+  pipeline(pdfPath, job, outPath, toPrinter) {
+    return new Promise((resolve, reject) => {
+      let gsArgs
+      try { gsArgs = this.gsArgs(pdfPath, job) } catch (err) { return reject(err) }
+      const gpArgs = ['-d', this.driver, '-m', job.color_mode === 'colour' ? 'Color' : 'BW', '-s', 'A4', '-t', 'Plain']
 
       const gs = spawn(this.gs, gsArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
       const gp = spawn(path.join(this.binDir, 'vp-gutenprint'), gpArgs, { stdio: ['pipe', 'pipe', 'pipe'] })
       const out = fs.createWriteStream(outPath)
+      const usb = toPrinter
+        ? spawn(this.su, ['-c', `${path.join(this.binDir, 'vp-usbprint')} -d ${this.device} -t 120000 send`], { stdio: ['pipe', 'ignore', 'pipe'] })
+        : null
 
-      let gsErr = ''
-      let gpErr = ''
-      let gsCode = null
-      let gpCode = null
+      const err = { gs: '', gp: '', usb: '' }
+      const code = { gs: null, gp: null, usb: toPrinter ? null : 0 }
       let outDone = false
       let settled = false
 
       gs.stdout.pipe(gp.stdin)
-      gs.stderr.on('data', (d) => { gsErr += d })
-      gp.stderr.on('data', (d) => { gpErr += d })
+      gs.stderr.on('data', (d) => { err.gs += d })
+      gp.stderr.on('data', (d) => { err.gp += d })
+      gp.stdin.on('error', () => {}) // reported via exit codes
       gp.stdout.pipe(out)
-      gp.stdin.on('error', () => {}) // reported via exit codes below
+      if (usb) {
+        gp.stdout.pipe(usb.stdin)
+        usb.stdin.on('error', () => {}) // printer gone mid-send → exit code says so
+        usb.stderr.on('data', (d) => { err.usb += d })
+      }
 
-      // Settle only once Ghostscript, vp-gutenprint AND the output file are done
-      const finish = () => {
-        if (settled || gsCode === null || gpCode === null || !outDone) return
+      const sentBytes = () => {
+        const m = /sent (\d+) bytes/.exec(err.usb)
+        return m ? Number(m[1]) : 0
+      }
+      const fail = (e) => {
+        if (settled) return
         settled = true
-        if (gsCode !== 0) {
-          return reject(new PrinterError('RENDER_FAILED', `Could not render document (Ghostscript ${gsCode}): ${gsErr.trim().slice(0, 300)}`))
+        for (const p of [gs, gp, usb]) if (p) p.kill()
+        reject(e)
+      }
+      const finish = () => {
+        if (settled || code.gs === null || code.gp === null || code.usb === null || !outDone) return
+        settled = true
+        const sent = sentBytes()
+        if (code.usb !== 0) {
+          const any = sent > 0
+          if (code.usb === 2) return reject(new PrinterError('PRINTER_NOT_FOUND', 'Printer disconnected during printing', any))
+          if (code.usb === 3) return reject(new PrinterError('PRINTER_STALLED', 'Printer stopped accepting data (out of paper, paper jam, ink problem or power loss)', any))
+          return reject(new PrinterError('USB_ERROR', `USB error: ${err.usb.trim().slice(0, 200)}`, any))
         }
-        if (gpCode !== 0) {
-          return reject(new PrinterError('ENCODE_FAILED', `Printer encoding failed (vp-gutenprint ${gpCode}): ${gpErr.trim().slice(0, 300)}`))
+        if (code.gs !== 0) {
+          return reject(new PrinterError('RENDER_FAILED', `Could not render document (Ghostscript ${code.gs}): ${err.gs.trim().slice(0, 300)}`, sent > 0))
         }
-        const m = /pages (\d+)/.exec(gpErr)
+        if (code.gp !== 0) {
+          return reject(new PrinterError('ENCODE_FAILED', `Printer encoding failed (vp-gutenprint ${code.gp}): ${err.gp.trim().slice(0, 300)}`, sent > 0))
+        }
+        const m = /pages (\d+)/.exec(err.gp)
         const pages = m ? Number(m[1]) : 0
         if (pages < 1) return reject(new PrinterError('RENDER_FAILED', 'Document rendered to zero pages'))
-        resolve({ pages, bytes: fs.statSync(outPath).size })
+        resolve({ pages, bytes: fs.statSync(outPath).size, sent })
       }
-      gs.on('close', (code) => { gsCode = code; finish() })
-      gp.on('close', (code) => { gpCode = code; finish() })
+      // A process killed by a signal closes with code null: count it as a
+      // failure (-1), or finish() would wait for it forever
+      gs.on('close', (c) => { code.gs = c ?? -1; finish() })
+      gp.on('close', (c) => { code.gp = c ?? -1; finish() })
       out.on('close', () => { outDone = true; finish() })
-      const fail = (err) => { if (!settled) { settled = true; gs.kill(); gp.kill(); reject(err) } }
+      if (usb) {
+        usb.on('close', (c) => {
+          code.usb = c ?? -1
+          // Printer gone: stop rendering, report it
+          if (c !== 0) { gs.kill(); gp.kill() }
+          finish()
+        })
+        usb.on('error', (e) => fail(new PrinterError('USB_ERROR', `Could not start the USB sender: ${e.message}`)))
+      }
       gs.on('error', (e) => fail(new PrinterError('RENDER_FAILED', `Ghostscript not available: ${e.message}`)))
       gp.on('error', (e) => fail(new PrinterError('ENCODE_FAILED', `vp-gutenprint not available: ${e.message}`)))
     })
+  }
+
+  /** Render only (no printing) — the file can then be sent with sendCopy. */
+  render(pdfPath, job, outPath) {
+    return this.pipeline(pdfPath, job, outPath, false)
+  }
+
+  /** Render and print copy 1 at the same time; outPath keeps it for more copies. */
+  printStreaming(pdfPath, job, outPath) {
+    return this.pipeline(pdfPath, job, outPath, true)
   }
 
   /** Send one rendered copy. `sentBefore` = bytes of earlier copies. */
@@ -190,9 +241,9 @@ class GutenprintUsbPrinter {
    * Wait out the physical print and check the printer is healthy afterwards.
    * Returns evidence; throws if the printer reports paper-out/error.
    */
-  async waitForPrint(sheets, log, job = {}) {
-    const perPage = SECONDS_PER_PAGE[job.color_mode === 'colour' ? 'colour' : 'bw']
-    const expectedMs = (WARMUP_SECONDS + sheets * perPage) * 1000
+  async waitForPrint(sheets, log) {
+    // Called once every byte has been accepted — only the buffered tail is left
+    const expectedMs = (TAIL_SECONDS + TAIL_SECONDS_PER_SHEET * Math.min(sheets, 5)) * 1000
     const started = Date.now()
     log(`Waiting ~${Math.round(expectedMs / 1000)}s for ${sheets} sheet(s) to print...`)
 

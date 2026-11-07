@@ -311,22 +311,42 @@ async function printWithUsb(job, pdfPath) {
   const zjsPath = path.join(TEMP_DIR, `job_${job.id}.prn`)
   try {
     await printer.ensureFirmware(log)
-
-    journalSet(job.id, 'rendering')
-    log('Rendering document for the printer...')
-    const { pages, bytes } = await printer.render(pdfPath, job, zjsPath)
     const copies = Math.max(1, Number(job.copies) || 1)
-    log(`Rendered ${pages} page(s), ${bytes} bytes per copy, ${copies} cop${copies === 1 ? 'y' : 'ies'}.`)
 
     // Don't start a job the printer can't finish right now
-    const state = await printer.probe()
-    if (!state.present) throw new PrinterError('PRINTER_NOT_FOUND', 'Printer not connected or powered off')
-    if (state.paper_empty) throw new PrinterError('PAPER_OUT', 'Printer is out of paper — nothing was printed')
-    if (state.error) throw new PrinterError('PRINTER_ERROR', 'Printer reports an error — nothing was printed')
+    const checkReady = async () => {
+      const state = await printer.probe()
+      if (!state.present) throw new PrinterError('PRINTER_NOT_FOUND', 'Printer not connected or powered off')
+      if (state.paper_empty) throw new PrinterError('PAPER_OUT', 'Printer is out of paper — nothing was printed')
+      if (state.error) throw new PrinterError('PRINTER_ERROR', 'Printer reports an error — nothing was printed')
+    }
 
+    let pages
     let sent = 0
-    journalSet(job.id, 'sending', { bytes_sent: 0 })
-    for (let c = 1; c <= copies; c++) {
+    let firstCopyDone = false
+    if (printer.printStreaming) {
+      // Render and print at the same time: the first page starts printing
+      // while the rest is still being rendered
+      await checkReady()
+      journalSet(job.id, 'sending', { bytes_sent: 0 })
+      log('Rendering and printing...')
+      const r = await printer.printStreaming(pdfPath, job, zjsPath)
+      pages = r.pages
+      sent = r.sent
+      firstCopyDone = true
+      log(`Printed copy 1/${copies}: ${pages} page(s), ${r.bytes} bytes.`)
+      journalSet(job.id, 'sending', { bytes_sent: sent })
+    } else {
+      journalSet(job.id, 'rendering')
+      log('Rendering document for the printer...')
+      const r = await printer.render(pdfPath, job, zjsPath)
+      pages = r.pages
+      log(`Rendered ${pages} page(s), ${r.bytes} bytes per copy, ${copies} cop${copies === 1 ? 'y' : 'ies'}.`)
+      await checkReady()
+      journalSet(job.id, 'sending', { bytes_sent: 0 })
+    }
+
+    for (let c = firstCopyDone ? 2 : 1; c <= copies; c++) {
       log(`Sending copy ${c}/${copies}...`)
       sent += await printer.sendCopy(zjsPath, sent)
       journalSet(job.id, 'sending', { bytes_sent: sent })

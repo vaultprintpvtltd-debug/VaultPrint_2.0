@@ -106,9 +106,14 @@ mkdir -p ~/.termux/boot && cp android/boot/start-vaultprint ~/.termux/boot/ && c
 su -c "dumpsys deviceidle whitelist +com.termux"   # no battery-optimisation prompt at boot
 ```
 
-It waits for the network, then runs and supervises the agent (restart on
-exit, single instance, 5 MB log rotation); the agent's watchdog locks the
-screen and taps it into full screen. On the TX3 the boot broadcast reaches
+The boot script immediately hands off to `android/supervise.sh` **as root**
+(via `su`), which waits for the network, then runs and supervises the agent
+(restart on exit, single instance, 5 MB log rotation); the agent's watchdog
+locks the screen and taps it into full screen. The root hand-off matters:
+about a minute after boot Android may kill the idle Termux app as an "empty"
+process, and every process the app started dies with it. The root supervisor
+isn't part of the app. Root also has network access, which the Termux user
+lacks when started through `su`. On the TX3 the boot broadcast reaches
 Termux:Boot ~80 s after boot, so the kiosk appears ~2 minutes after power-on.
 
 **Staff exit:** on the kiosk screen, press and hold the VaultPrint logo for
