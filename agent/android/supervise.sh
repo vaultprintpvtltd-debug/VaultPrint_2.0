@@ -26,7 +26,11 @@ LOGS="$AGENT/logs"
 PIDFILE="$AGENT/state/supervisor.pid"
 mkdir -p "$LOGS" "$AGENT/state"
 
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+# Already running? The pid must still BE this supervisor — after a reboot the
+# saved number usually belongs to some other process (checking only that the
+# pid exists made the supervisor exit at boot).
+OLD=$(cat "$PIDFILE" 2>/dev/null)
+if [ -n "$OLD" ] && [ "$OLD" != "$$" ] && tr '\0' ' ' < "/proc/$OLD/cmdline" 2>/dev/null | grep -q 'supervise\.sh'; then
   exit 0
 fi
 echo $$ > "$PIDFILE"
