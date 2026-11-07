@@ -324,7 +324,11 @@ async function printWithUsb(job, pdfPath) {
     let pages
     let sent = 0
     let firstCopyDone = false
-    if (printer.printStreaming) {
+    // Render-while-printing is OFF by default: the box renders photos slower
+    // than the Canon prints them, the printer runs out of data mid-page and
+    // splits one page across several sheets. Rendering fully first, then
+    // sending at USB speed, never starves it. (PRINT_STREAMING=1 to opt in.)
+    if (printer.printStreaming && process.env.PRINT_STREAMING === '1') {
       // Render and print at the same time: the first page starts printing
       // while the rest is still being rendered
       await checkReady()
