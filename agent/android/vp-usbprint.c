@@ -86,18 +86,32 @@ static int find_printer(const char *vid, const char *pid, struct printer *p)
 	const char *base = strrchr(p->sysdir, '/') + 1;
 	size_t blen = strlen(base);
 	p->ep_out = p->ep_in = 0;
+	/* A device can expose several printer-class interfaces (multifunction:
+	 * printer + fax). Use the lowest-numbered one — the main printer —
+	 * not whichever the directory listing returns first. */
+	char best[256] = "";
+	int best_if = 1 << 30;
 	while ((e = readdir(d))) {
 		if (strncmp(e->d_name, base, blen) || e->d_name[blen] != ':') continue;
 		snprintf(path, sizeof path, SYSFS "/%s/bInterfaceClass", e->d_name);
 		if (read_int(path, 16) != 0x07) continue;
 		snprintf(path, sizeof path, SYSFS "/%s/bInterfaceNumber", e->d_name);
-		p->ifnum = read_int(path, 16);
-		snprintf(path, sizeof path, SYSFS "/%s/bAlternateSetting", e->d_name);
+		int n = read_int(path, 16);
+		if (n >= 0 && n < best_if) {
+			best_if = n;
+			snprintf(best, sizeof best, "%s", e->d_name);
+		}
+	}
+	closedir(d);
+	if (!best[0]) return -1;
+	{
+		p->ifnum = best_if;
+		snprintf(path, sizeof path, SYSFS "/%s/bAlternateSetting", best);
 		p->alt = read_int(path, 10);
 		if (p->alt < 0) p->alt = 0;
 
 		char ifdir[300];
-		snprintf(ifdir, sizeof ifdir, SYSFS "/%s", e->d_name);
+		snprintf(ifdir, sizeof ifdir, SYSFS "/%s", best);
 		DIR *id = opendir(ifdir);
 		struct dirent *ee;
 		while (id && (ee = readdir(id))) {
@@ -112,9 +126,7 @@ static int find_printer(const char *vid, const char *pid, struct printer *p)
 			if (!strcmp(dir, "in") && !p->ep_in) p->ep_in = addr;
 		}
 		if (id) closedir(id);
-		break;
 	}
-	closedir(d);
 	return p->ep_out ? 0 : -1;
 }
 

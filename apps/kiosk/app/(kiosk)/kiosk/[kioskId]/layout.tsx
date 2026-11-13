@@ -74,6 +74,14 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     return () => document.removeEventListener('pointerup', enterFullscreen)
   }, [])
 
+  // ── No "Add VaultPrint to Home screen" banner on the kiosk ─────────────
+  // Chrome shows its install banner unless the page takes the prompt event.
+  useEffect(() => {
+    const suppress = (e: Event) => e.preventDefault()
+    window.addEventListener('beforeinstallprompt', suppress)
+    return () => window.removeEventListener('beforeinstallprompt', suppress)
+  }, [])
+
   // React hoists these into <head>
   const appHead = (
     <>

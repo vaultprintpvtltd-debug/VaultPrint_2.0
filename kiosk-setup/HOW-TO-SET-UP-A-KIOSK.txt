@@ -1,0 +1,43 @@
+VAULTPRINT - SETTING UP A NEW KIOSK
+===================================
+
+You need:
+  * A Windows PC on the same Wi-Fi as the kiosk box
+  * The kiosk box (rooted Android box with touchscreen) switched on and on that Wi-Fi
+  * The printer plugged into the box by USB and switched on, with paper
+  * A Kiosk ID and API key for this kiosk
+
+STEP 1 - Get the Kiosk ID and API key
+  Open the VaultPrint admin panel -> Kiosks -> Add kiosk.
+  Enter the kiosk's name and location and save.
+  The panel shows a Kiosk ID and an API key. COPY BOTH NOW - the key is shown only once.
+
+STEP 2 - Turn on network debugging on the box (only once per box)
+  On the box: Settings -> About -> tap "Build number" 7 times (turns on Developer options),
+  then Settings -> System -> Developer options -> turn on "USB debugging"
+  (and "ADB over network" / "Wireless debugging" if the box has it).
+  Many kiosk boxes already have this on.
+
+STEP 3 - Run the setup
+  Double-click "Setup VaultPrint Kiosk.bat" in this folder.
+  It finds the box by itself. When asked, paste the Kiosk ID and the API key,
+  and choose a staff PIN (or press Enter and it makes one).
+  First setup takes 5-10 minutes. Keep the box switched on until it says DONE.
+
+That's it. The box now:
+  * shows the VaultPrint kiosk screen, full screen and locked,
+  * finds the printer by itself (HP LaserJet 1020, Canon PIXMA inkjets, and most
+    office laser printers that speak PCL or PostScript),
+  * starts again by itself after every power cut (about 2-3 minutes after power-on).
+
+STAFF EXIT (to use the box for anything else)
+  On the kiosk screen, press and hold the VaultPrint logo for 5 seconds,
+  then enter the staff PIN. The box unlocks for 30 minutes, then locks again by itself.
+
+UPDATING A KIOSK
+  Run the same setup again with the same Kiosk ID and API key. It keeps everything
+  else (logs, history) and installs the newest software.
+
+IF SETUP STOPS
+  It shows a message in red saying what is wrong (box not found, wrong API key,
+  no internet on the box, ...). Fix that and run the setup again.

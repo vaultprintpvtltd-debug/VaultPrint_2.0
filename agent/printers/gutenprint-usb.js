@@ -20,6 +20,7 @@ const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { PrinterError } = require('./zjs-usb')
+const { rootShell } = require('./rootcmd')
 
 // Rendering resolution: Gutenprint resamples to the printer's own resolution;
 // 300 dpi input keeps text sharp at a quarter of 600 dpi's work on the box.
@@ -55,10 +56,11 @@ function run(cmd, args, { input, timeoutMs = 60000 } = {}) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 class GutenprintUsbPrinter {
-  constructor({ binDir, gs = 'gs', su = '/system/bin/su', device = '04a9:183a', driver = 'bjc-G2000-series' }) {
+  constructor({ binDir, gs = 'gs', su = null, device = '04a9:183a', driver = 'bjc-G2000-series' }) {
     this.binDir = binDir
     this.gs = gs
-    this.su = su
+    // Explicit su path (legacy) or auto: direct when root, else the box's su
+    this.shell = su ? [su, ['-c']] : rootShell()
     this.device = device
     this.driver = driver
     this.lastStatus = null
@@ -67,7 +69,7 @@ class GutenprintUsbPrinter {
   /** vp-usbprint runs as root; the command string contains no job input. */
   usb(args, opts) {
     const cmd = `${path.join(this.binDir, 'vp-usbprint')} -d ${this.device} ${args}`
-    return run(this.su, ['-c', cmd], opts)
+    return run(this.shell[0], [...this.shell[1], cmd], opts)
   }
 
   /** Checks the binaries exist — called once at agent start. */
@@ -142,7 +144,7 @@ class GutenprintUsbPrinter {
       const gp = spawn(path.join(this.binDir, 'vp-gutenprint'), gpArgs, { stdio: ['pipe', 'pipe', 'pipe'] })
       const out = fs.createWriteStream(outPath)
       const usb = toPrinter
-        ? spawn(this.su, ['-c', `${path.join(this.binDir, 'vp-usbprint')} -d ${this.device} -t 120000 send`], { stdio: ['pipe', 'ignore', 'pipe'] })
+        ? spawn(this.shell[0], [...this.shell[1], `${path.join(this.binDir, 'vp-usbprint')} -d ${this.device} -t 120000 send`], { stdio: ['pipe', 'ignore', 'pipe'] })
         : null
 
       const err = { gs: '', gp: '', usb: '' }

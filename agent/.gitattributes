@@ -1,3 +1,5 @@
 # Shell scripts run on the Android box — must keep LF line endings
 *.sh text eol=lf
 android/boot/* text eol=lf
+# Prebuilt static binaries / archives for the boxes — never touch line endings
+android/prebuilt/** binary

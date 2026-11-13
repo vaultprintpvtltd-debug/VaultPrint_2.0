@@ -19,6 +19,7 @@
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { rootShell } = require('./rootcmd')
 
 // A4 at 600x600 dpi, as foo2zjs-wrapper computes it (XDIM 9920/2 x YDIM 7016)
 const DIM = '4960x7016'
@@ -66,11 +67,12 @@ function run(cmd, args, { input, timeoutMs = 60000 } = {}) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 class ZjsUsbPrinter {
-  constructor({ binDir, firmwarePath, gs = 'gs', su = '/system/bin/su', device = '03f0:2b17' }) {
+  constructor({ binDir, firmwarePath, gs = 'gs', su = null, device = '03f0:2b17' }) {
     this.binDir = binDir
     this.firmwarePath = firmwarePath
     this.gs = gs
-    this.su = su
+    // Explicit su path (legacy) or auto: direct when root, else the box's su
+    this.shell = su ? [su, ['-c']] : rootShell()
     this.device = device
     this.lastStatus = null
   }
@@ -78,7 +80,7 @@ class ZjsUsbPrinter {
   /** vp-usbprint runs as root; the command string contains no job input. */
   usb(args, opts) {
     const cmd = `${path.join(this.binDir, 'vp-usbprint')} -d ${this.device} ${args}`
-    return run(this.su, ['-c', cmd], opts)
+    return run(this.shell[0], [...this.shell[1], cmd], opts)
   }
 
   /** Checks the binaries and firmware exist — called once at agent start. */

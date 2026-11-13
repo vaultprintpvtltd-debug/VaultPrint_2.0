@@ -10,6 +10,9 @@
 //   3. Print execution — backend chosen by PRINT_BACKEND:
 //        zjs-usb        Android/Termux + HP LaserJet 1020 (printers/zjs-usb.js)
 //        gutenprint-usb Android/Termux + Canon PIXMA G2010 (printers/gutenprint-usb.js)
+//        auto           Android default: detect the USB printer and pick one of
+//                       the above, or pdl-usb for PCL XL / PostScript lasers
+//                       (printers/auto.js, printers/pdl-usb.js)
 //        sumatra  Windows, SumatraPDF to an installed Windows printer
 //        fake     development only — explicit opt-in, never automatic
 //   4. Job completion — PATCH /api/kiosk/[id]/job/[jid] with evidence
@@ -30,6 +33,8 @@ const crypto = require('crypto')
 const http = require('http')
 const { ZjsUsbPrinter, PrinterError } = require('./printers/zjs-usb')
 const { GutenprintUsbPrinter } = require('./printers/gutenprint-usb')
+const { AutoPrinter } = require('./printers/auto')
+const { rootShell } = require('./printers/rootcmd')
 
 // ─── ENV VALIDATION ─────────────────────────────────────────────────────────
 
@@ -47,7 +52,7 @@ const PLATFORM = process.platform // 'win32' | 'darwin' | 'linux' | 'android'
 
 function defaultBackend() {
   if (PRINTER_NAME === 'FAKE_PRINTER') return 'fake'
-  if (PLATFORM === 'android') return 'zjs-usb'
+  if (PLATFORM === 'android') return 'auto'
   if (PLATFORM === 'win32') return 'sumatra'
   return 'none'
 }
@@ -65,9 +70,9 @@ function fatal(message) {
 if (!KIOSK_ID) fatal('KIOSK_ID is not set in .env')
 if (!KIOSK_API_KEY) fatal('KIOSK_API_KEY is not set in .env')
 if (!KIOSK_API_BASE_URL) fatal('KIOSK_API_BASE_URL is not set in .env')
-const USB_BACKENDS = ['zjs-usb', 'gutenprint-usb']
+const USB_BACKENDS = ['zjs-usb', 'gutenprint-usb', 'auto']
 if (![...USB_BACKENDS, 'sumatra', 'fake'].includes(PRINT_BACKEND)) {
-  fatal(`No print backend for platform "${PLATFORM}". Set PRINT_BACKEND=zjs-usb|gutenprint-usb|sumatra|fake`)
+  fatal(`No print backend for platform "${PLATFORM}". Set PRINT_BACKEND=auto|zjs-usb|gutenprint-usb|sumatra|fake`)
 }
 
 // Startup guard: KIOSK_API_BASE_URL must contain "kiosk." in production.
@@ -93,6 +98,13 @@ function createPrinter() {
       binDir: VP_BIN_DIR,
       firmwarePath: process.env.VP_FIRMWARE || path.join(os.homedir(), 'vaultprint', 'firmware', 'hp_laserjet_1020.fw'),
       device: process.env.PRINTER_USB_ID || '03f0:2b17',
+    })
+  }
+  if (PRINT_BACKEND === 'auto') {
+    return new AutoPrinter({
+      binDir: VP_BIN_DIR,
+      firmwarePath: process.env.VP_FIRMWARE || path.join(os.homedir(), 'vaultprint', 'firmware', 'hp_laserjet_1020.fw'),
+      log: (m) => log(m),
     })
   }
   if (PRINT_BACKEND === 'gutenprint-usb') {
@@ -467,7 +479,8 @@ function ensureKioskLock() {
   if (isCheckingLock) return
   isCheckingLock = true
   const script = path.join(__dirname, 'android', 'kiosk.sh')
-  execFile('/system/bin/su', ['-c', `sh ${script} ensure`], { timeout: 30000 }, (err, stdout) => {
+  const [rsh, rpre] = rootShell()
+  execFile(rsh, [...rpre, `sh ${script} ensure`], { timeout: 30000 }, (err, stdout) => {
     isCheckingLock = false
     const out = (stdout || '').trim()
     if (out) log(`Kiosk lock: ${out}`)
@@ -525,7 +538,8 @@ function startStaffServer() {
       // Let the response reach the page before Chrome is restarted unlocked
       setTimeout(() => {
         const script = path.join(__dirname, 'android', 'kiosk.sh')
-        execFile('/system/bin/su', ['-c', `sh ${script} unlock`], { timeout: 30000 }, (err, stdout) => {
+        const [rsh, rpre] = rootShell()
+        execFile(rsh, [...rpre, `sh ${script} unlock`], { timeout: 30000 }, (err, stdout) => {
           if (err) logError('Staff unlock failed:', err.message)
           else log(`Kiosk lock: ${(stdout || '').trim()}`)
         })

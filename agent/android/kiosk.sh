@@ -28,6 +28,10 @@
 # /data/system/users/0/res_com.android.chrome.xml. State: /data/vaultprint-kiosk
 # ---------------------------------------------------------------------------
 
+# Android's own tools first: run from the agent (Termux PATH) a bare `am`
+# would be Termux's am, which can't list or pin tasks
+export PATH=/system/bin:/system/xbin:$PATH
+
 STATE=/data/vaultprint-kiosk
 CHROME=com.android.chrome
 POLICY=/data/system/users/0/res_$CHROME.xml
@@ -69,9 +73,13 @@ EOF
   restorecon $POLICY 2>/dev/null
 }
 
-# Show/hide the box's navigation bar; SystemUI reads it on start (restarts itself)
+# Show/hide the box's navigation bar; SystemUI reads it on start (restarts itself).
+# Only Amlogic ROMs (TX3) have this setting; elsewhere ("null") the page's own
+# full screen and the lock-task pin do the job.
 set_navbar() {
-  [ "$(settings get system navbar)" = "$1" ] && return
+  CUR=$(settings get system navbar)
+  [ "$CUR" = "null" ] && return
+  [ "$CUR" = "$1" ] && return
   settings put system navbar "$1"
   pkill -f com.android.systemui
   sleep 3
@@ -112,10 +120,14 @@ do_lock() {
   echo "locked (chrome task $TASK)"
 }
 
-# 1920x1080 screen: left column heading/description — no button there on any
-# kiosk screen, with or without Chrome's toolbar showing
+# A non-interactive spot on every kiosk screen (left column, under the
+# "How it works" heading): 25% across, 35% down — 480,380 on 1920x1080
 tap_for_fullscreen() {
-  input tap 480 380
+  SIZE=$(wm size | grep -oE '[0-9]+x[0-9]+' | tail -1)
+  W=${SIZE%x*}
+  H=${SIZE#*x}
+  [ -n "$W" ] && [ -n "$H" ] || { W=1920; H=1080; }
+  input tap $((W / 4)) $((H * 35 / 100))
 }
 
 case "$1" in

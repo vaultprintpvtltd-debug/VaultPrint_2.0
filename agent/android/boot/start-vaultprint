@@ -1,13 +1,38 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # ---------------------------------------------------------------------------
 # Termux:Boot entry point — starts the VaultPrint print agent at every boot.
-# Install: copy to ~/.termux/boot/start-vaultprint (chmod 700) and open the
-# Termux:Boot app once. The agent's watchdog then locks the kiosk screen.
+# Installed by android/install.sh as ~/.termux/boot/start-vaultprint.
 #
 # Hands off to android/supervise.sh as root, at once: Android may kill the
 # Termux app as an idle process a minute after boot, taking every process it
 # started with it. The root supervisor lives outside the app and survives.
+#
+# Two ways to reach root, depending on the box:
+#   1. su usable by apps (Amlogic TX3: /system/bin/su)
+#   2. su restricted to the shell user (Rockchip RK3568 userdebug): go
+#      through the box's own ADB on 127.0.0.1:5555, whose shell may use su
 # ---------------------------------------------------------------------------
 
 AGENT="$HOME/vaultprint/agent"
-/system/bin/su -c "nohup /system/bin/sh $AGENT/android/supervise.sh </dev/null >/dev/null 2>&1 &"
+SUP="$AGENT/android/supervise.sh"
+LOG="$AGENT/logs/agent.log"
+mkdir -p "$AGENT/logs"
+log() { echo "[$(date -Iseconds)] [boot] $*" >> "$LOG"; }
+
+if [ -x /system/bin/su ] && /system/bin/su -c true 2>/dev/null; then
+  /system/bin/su -c "nohup /system/bin/sh $SUP </dev/null >/dev/null 2>&1 &"
+  log "started supervisor via su"
+  exit 0
+fi
+
+# ADB loopback (needs Termux's android-tools package)
+i=0
+until adb connect 127.0.0.1:5555 2>/dev/null | grep -q connected || [ $i -ge 45 ]; do
+  i=$((i + 1))
+  sleep 2
+done
+SU=$(adb -s 127.0.0.1:5555 shell 'for s in /system/xbin/su /system/bin/su /sbin/su; do [ -e $s ] && echo $s && break; done' | tr -d '\r')
+adb -s 127.0.0.1:5555 shell "$SU 0 /system/bin/sh -c 'nohup /system/bin/sh $SUP </dev/null >/dev/null 2>&1 &'"
+log "started supervisor via adb loopback ($SU, after $((i * 2))s)"
+adb disconnect 127.0.0.1:5555 >/dev/null 2>&1
+adb kill-server >/dev/null 2>&1
