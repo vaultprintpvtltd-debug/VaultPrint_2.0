@@ -12,3 +12,6 @@ node_modules/
 state/
 temp/
 SumatraPDF.exe
+
+# The prebuilt Canon converter ships with the setup tool (root .gitignore ignores *.tgz)
+!android/prebuilt/gutenprint-armhf.tgz
