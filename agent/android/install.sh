@@ -136,18 +136,22 @@ chmod -R go-rwx $VP
 
 # ── 8. Kiosk screen (Chrome locked to the kiosk page) ────────────────────
 step 8 "Locking the screen to the kiosk page"
-PAGE_HOST=$(echo "$KIOSK_API_BASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')
-sh $VP/agent/android/kiosk.sh setup "$PAGE_HOST/kiosk/$KIOSK_ID?key=$KIOSK_API_KEY" >/dev/null 2>&1 \
-  || fail "could not set up the kiosk screen"
-
-# ── 9. Start (or restart) the agent ──────────────────────────────────────
-step 9 "Starting VaultPrint"
+# Stop the running agent first: its lock watchdog would relaunch Chrome
+# while the policy is being replaced, and Chrome would keep the old one
 OLD=$(cat $VP/agent/state/supervisor.pid 2>/dev/null)
 if [ -n "$OLD" ] && tr '\0' ' ' < /proc/$OLD/cmdline 2>/dev/null | grep -q supervise\.sh; then
   kill "$OLD" 2>/dev/null
 fi
 pkill -f "node agent.js" 2>/dev/null
 sleep 2
+am task lock stop >/dev/null 2>&1
+PAGE_HOST=$(echo "$KIOSK_API_BASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#')
+sh $VP/agent/android/kiosk.sh setup "$PAGE_HOST/kiosk/$KIOSK_ID?key=$KIOSK_API_KEY" >/dev/null 2>&1 \
+  || fail "could not set up the kiosk screen"
+am force-stop com.android.chrome
+
+# ── 9. Start the agent ───────────────────────────────────────────────────
+step 9 "Starting VaultPrint"
 online_count() { n=$(grep -c 'Kiosk is now online' $VP/agent/logs/agent.log 2>/dev/null); echo "${n:-0}"; }
 BEFORE=$(online_count)
 nohup /system/bin/sh $VP/agent/android/supervise.sh </dev/null >/dev/null 2>&1 &

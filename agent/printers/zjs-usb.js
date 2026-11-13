@@ -96,6 +96,8 @@ class ZjsUsbPrinter {
   async probe() {
     const id = await this.usb('id', { timeoutMs: 15000 })
     if (id.code === 2) return (this.lastStatus = { present: false, firmware_loaded: false, ready: false })
+    // 5 = another vp-usbprint is using it (a job being sent): present and busy
+    if (id.code === 5) return (this.lastStatus = { ...(this.lastStatus || {}), present: true, firmware_loaded: true, ready: true, busy: true })
     if (id.code !== 0) return (this.lastStatus = { present: true, firmware_loaded: false, ready: false, error: id.stderr.trim() })
 
     const firmware = /FWVER:([^;]+)/.exec(id.stdout)

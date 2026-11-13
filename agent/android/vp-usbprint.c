@@ -13,7 +13,8 @@
  *
  * Default device: 03f0:2b17 (HP LaserJet 1020).
  * Exit codes: 0 ok, 2 printer not found, 3 printer stopped accepting data
- *             (stall timeout), 4 USB / IO error, 64 usage.
+ *             (stall timeout), 4 USB / IO error, 5 printer busy (another
+ *             program is using it — never taken over), 64 usage.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -130,20 +131,36 @@ static int find_printer(const char *vid, const char *pid, struct printer *p)
 	return p->ep_out ? 0 : -1;
 }
 
-static int open_claim(struct printer *p)
+/* Claim the printer interface. A KERNEL driver (usblp) holding it is
+ * detached; another program holding it through usbfs (another vp-usbprint,
+ * e.g. a job being sent) is never forced off — that would cut its print
+ * mid-page. Waits up to wait_ms for it to finish; returns -2 if still busy. */
+static int open_claim(struct printer *p, long wait_ms)
 {
 	int fd = open(p->node, O_RDWR);
 	if (fd < 0) { fprintf(stderr, "open %s: %s\n", p->node, strerror(errno)); return -1; }
 	unsigned int ifn = (unsigned int)p->ifnum;
-	if (ioctl(fd, USBDEVFS_CLAIMINTERFACE, &ifn) < 0) {
-		/* A kernel driver holds it — detach and retry */
+	long waited = 0;
+	while (ioctl(fd, USBDEVFS_CLAIMINTERFACE, &ifn) < 0) {
+		struct usbdevfs_getdriver gd = { .interface = (unsigned int)p->ifnum };
+		if (ioctl(fd, USBDEVFS_GETDRIVER, &gd) == 0 && strcmp(gd.driver, "usbfs") == 0) {
+			if (waited >= wait_ms) {
+				fprintf(stderr, "printer busy (in use by another program)\n");
+				close(fd);
+				return -2;
+			}
+			usleep(200000);
+			waited += 200;
+			continue;
+		}
+		/* A kernel driver holds it — detach it once and retry */
 		struct usbdevfs_ioctl cmd = { .ifno = p->ifnum, .ioctl_code = USBDEVFS_DISCONNECT, .data = NULL };
 		ioctl(fd, USBDEVFS_IOCTL, &cmd);
-		if (ioctl(fd, USBDEVFS_CLAIMINTERFACE, &ifn) < 0) {
-			fprintf(stderr, "claim interface %d: %s\n", p->ifnum, strerror(errno));
-			close(fd);
-			return -1;
-		}
+		if (ioctl(fd, USBDEVFS_CLAIMINTERFACE, &ifn) == 0) break;
+		if (ioctl(fd, USBDEVFS_GETDRIVER, &gd) == 0 && strcmp(gd.driver, "usbfs") == 0) continue;
+		fprintf(stderr, "claim interface %d: %s\n", p->ifnum, strerror(errno));
+		close(fd);
+		return -1;
 	}
 	return fd;
 }
@@ -254,7 +271,9 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	int fd = open_claim(&p);
+	/* A job waits for a status check to finish; a status check gives up fast */
+	int fd = open_claim(&p, strcmp(cmd, "send") == 0 ? 60000 : 3000);
+	if (fd == -2) return 5;
 	if (fd < 0) return 4;
 	int rc;
 	if (!strcmp(cmd, "id")) rc = cmd_id(fd, &p);
