@@ -200,6 +200,16 @@ async function printerHeartbeatState() {
     paper_empty: !!state.paper_empty,
     error: !!state.error,
     busy: isProcessingJob,
+    // Two-printer kiosks only: each colour mode's own printer
+    ...(state.by_mode ? {
+      by_mode: Object.fromEntries(Object.entries(state.by_mode).map(([mode, s]) => [mode, {
+        present: !!s.present,
+        ready: isProcessingJob ? true : !!s.ready,
+        paper_empty: !!s.paper_empty,
+        error: !!s.error,
+        model: s.model || null,
+      }])),
+    } : {}),
   }
 }
 
@@ -320,14 +330,17 @@ async function reportJobStatus(jobId, status, errorMessage = null, evidence = nu
 
 /** Android USB printers: (firmware) → render → send → wait → evidence. */
 async function printWithUsb(job, pdfPath) {
+  // Kiosks with two printers (auto backend) route jobs by colour mode; with
+  // one printer this is the same printer for every job
+  const dev = printer.forJob ? await printer.forJob(job) : printer
   const zjsPath = path.join(TEMP_DIR, `job_${job.id}.prn`)
   try {
-    await printer.ensureFirmware(log)
+    await dev.ensureFirmware(log)
     const copies = Math.max(1, Number(job.copies) || 1)
 
     // Don't start a job the printer can't finish right now
     const checkReady = async () => {
-      const state = await printer.probe()
+      const state = await dev.probe()
       if (!state.present) throw new PrinterError('PRINTER_NOT_FOUND', 'Printer not connected or powered off')
       if (state.paper_empty) throw new PrinterError('PAPER_OUT', 'Printer is out of paper — nothing was printed')
       if (state.error) throw new PrinterError('PRINTER_ERROR', 'Printer reports an error — nothing was printed')
@@ -340,13 +353,13 @@ async function printWithUsb(job, pdfPath) {
     // than the Canon prints them, the printer runs out of data mid-page and
     // splits one page across several sheets. Rendering fully first, then
     // sending at USB speed, never starves it. (PRINT_STREAMING=1 to opt in.)
-    if (printer.printStreaming && process.env.PRINT_STREAMING === '1') {
+    if (dev.printStreaming && process.env.PRINT_STREAMING === '1') {
       // Render and print at the same time: the first page starts printing
       // while the rest is still being rendered
       await checkReady()
       journalSet(job.id, 'sending', { bytes_sent: 0 })
       log('Rendering and printing...')
-      const r = await printer.printStreaming(pdfPath, job, zjsPath)
+      const r = await dev.printStreaming(pdfPath, job, zjsPath)
       pages = r.pages
       sent = r.sent
       firstCopyDone = true
@@ -355,7 +368,7 @@ async function printWithUsb(job, pdfPath) {
     } else {
       journalSet(job.id, 'rendering')
       log('Rendering document for the printer...')
-      const r = await printer.render(pdfPath, job, zjsPath)
+      const r = await dev.render(pdfPath, job, zjsPath)
       pages = r.pages
       log(`Rendered ${pages} page(s), ${r.bytes} bytes per copy, ${copies} cop${copies === 1 ? 'y' : 'ies'}.`)
       await checkReady()
@@ -364,12 +377,12 @@ async function printWithUsb(job, pdfPath) {
 
     for (let c = firstCopyDone ? 2 : 1; c <= copies; c++) {
       log(`Sending copy ${c}/${copies}...`)
-      sent += await printer.sendCopy(zjsPath, sent)
+      sent += await dev.sendCopy(zjsPath, sent)
       journalSet(job.id, 'sending', { bytes_sent: sent })
     }
     journalSet(job.id, 'sent', { bytes_sent: sent })
 
-    const wait = await printer.waitForPrint(pages * copies, log, job)
+    const wait = await dev.waitForPrint(pages * copies, log, job)
     return {
       confirmation: 'inferred', // no readable page counter — see printers/*.js
       backend: PRINT_BACKEND,

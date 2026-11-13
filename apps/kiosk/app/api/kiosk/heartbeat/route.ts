@@ -24,6 +24,24 @@ function getAdminSupabase() {
   )
 }
 
+/** Keep only known fields of the per-colour-mode printer states. */
+function sanitizeByMode(byMode: Record<string, unknown>) {
+  const out: Record<string, unknown> = {}
+  for (const mode of ['bw', 'colour']) {
+    const s = byMode[mode]
+    if (!s || typeof s !== 'object') continue
+    const m = s as Record<string, unknown>
+    out[mode] = {
+      present: m.present === true,
+      ready: m.ready === true,
+      paper_empty: m.paper_empty === true,
+      error: m.error === true,
+      model: typeof m.model === 'string' ? m.model.slice(0, 80) : null,
+    }
+  }
+  return out
+}
+
 export async function POST(request: NextRequest) {
   // x-kiosk-id is set by middleware after API key validation
   const kioskId = request.headers.get('x-kiosk-id')
@@ -104,6 +122,10 @@ export async function POST(request: NextRequest) {
         error: p.error === true,
         busy: p.busy === true,
         checked_at: new Date().toISOString(),
+        // Kiosks with separate B&W and colour printers: each mode's state
+        ...(p.by_mode && typeof p.by_mode === 'object' && !Array.isArray(p.by_mode)
+          ? { by_mode: sanitizeByMode(p.by_mode as Record<string, unknown>) }
+          : {}),
       },
     }
     // One readable word for the kiosk screen's status pill (anon can read it)

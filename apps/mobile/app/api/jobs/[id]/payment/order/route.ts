@@ -18,17 +18,27 @@ import { createRazorpayClient } from '@vaultprint/lib'
 // Same window the kiosk's code route uses for "agent online"
 const AGENT_ONLINE_WINDOW_MS = 2 * 60 * 1000
 
-interface KioskRow {
-  last_heartbeat: string | null
-  settings: { printer?: { ready?: boolean; paper_empty?: boolean; checked_at?: string } } | null
+interface PrinterReport {
+  ready?: boolean
+  paper_empty?: boolean
+  checked_at?: string
+  // Kiosks with separate B&W and colour printers
+  by_mode?: Record<string, { ready?: boolean; paper_empty?: boolean } | undefined>
 }
 
-/** null when the kiosk can print right now, else a reason code + message. */
-function printerProblem(kiosk: KioskRow | null): { code: string; error: string } | null {
+interface KioskRow {
+  last_heartbeat: string | null
+  settings: { printer?: PrinterReport } | null
+}
+
+/** null when the kiosk can print this colour mode now, else a reason. */
+function printerProblem(kiosk: KioskRow | null, colorMode: string | null): { code: string; error: string } | null {
   if (!kiosk?.last_heartbeat || Date.now() - new Date(kiosk.last_heartbeat).getTime() > AGENT_ONLINE_WINDOW_MS) {
     return { code: 'printer_offline', error: 'This kiosk is offline right now. Please try again in a few minutes — you have not been charged.' }
   }
-  const p = kiosk.settings?.printer
+  const report = kiosk.settings?.printer
+  // Two-printer kiosk: the printer for this job's mode; else the one printer
+  const p = report?.by_mode?.[colorMode === 'colour' ? 'colour' : 'bw'] ?? report
   if (p && p.ready === false) {
     return p.paper_empty
       ? { code: 'paper_out', error: 'The kiosk printer is out of paper. Please ask the staff to refill it — you have not been charged.' }
@@ -55,7 +65,7 @@ export async function POST(
   // 1. Fetch job
   const { data: job, error: jobError } = await supabase
     .from('print_jobs')
-    .select('id, session_id, total_price, status, razorpay_order_id, kiosks(last_heartbeat, settings)')
+    .select('id, session_id, total_price, status, color_mode, razorpay_order_id, kiosks(last_heartbeat, settings)')
     .eq('session_id', sessionId)
     .single()
 
@@ -71,7 +81,7 @@ export async function POST(
     )
   }
 
-  const problem = printerProblem(job.kiosks as unknown as KioskRow | null)
+  const problem = printerProblem(job.kiosks as unknown as KioskRow | null, job.color_mode)
   if (problem) return NextResponse.json(problem, { status: 503 })
 
   // Idempotent: if already has an order, return it

@@ -16,6 +16,8 @@ param(
   [string]$KioskId,
   [string]$ApiKey,
   [string]$Pin,
+  # The kiosk server (the kiosk screen and the agent's API both live here)
+  [string]$ApiBase = 'https://kiosk.vaultprint.in',
   [switch]$NoPause
 )
 
@@ -25,7 +27,6 @@ $ErrorActionPreference = 'Continue'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Repo = Split-Path -Parent $Here
 $Tools = Join-Path $Here 'tools'
-$ApiBase = 'https://vaultprint-kiosk.vercel.app'
 
 # Official F-Droid builds (Termux and Termux:Boot must come from the same source)
 $Apks = @(

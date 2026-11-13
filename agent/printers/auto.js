@@ -1,22 +1,29 @@
 // ---------------------------------------------------------------------------
-// PRINT_BACKEND=auto — find the USB printer and pick its backend.
+// PRINT_BACKEND=auto — find the kiosk's USB printer(s) and pick backends.
 //
-// The same agent runs on every kiosk; nobody types printer settings. On each
-// probe (heartbeat, before a job) the attached printer is identified from
-// its IEEE-1284 device ID and the matching backend is used:
+// The same agent runs on every kiosk; nobody types printer settings. Each
+// attached printer is identified from its IEEE-1284 device ID:
 //
 //   HP LaserJet 1020 (03f0:2b17, ZjStream)  → zjs-usb        (needs firmware file)
-//   CMD contains BJRaster (Canon inkjets)    → gutenprint-usb (Canon G2000-series driver)
+//   CMD contains BJRaster (Canon inkjets)    → gutenprint-usb (colour)
 //   CMD contains PCLXL                        → pdl-usb, PCL XL
 //   CMD contains POSTSCRIPT / PS              → pdl-usb, PostScript
 //
-// If the printer is unplugged or swapped, the next probe detects it again.
+// ONE printer (the usual kiosk): every job goes to it — B&W and colour.
+//
+// TWO OR MORE printers: jobs are routed by colour mode —
+//   colour → the colour printer (an inkjet), B&W → a laser if there is one.
+//   Override with PRINTER_BW=<vid:pid> / PRINTER_COLOUR=<vid:pid> in .env.
+// The heartbeat then also reports each mode's printer state (by_mode), so a
+// switched-off colour printer blocks only colour payments.
+//
+// Unplugged / swapped printers are detected again on the next probe.
 // ---------------------------------------------------------------------------
 
 const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
-const { ZjsUsbPrinter } = require('./zjs-usb')
+const { ZjsUsbPrinter, PrinterError } = require('./zjs-usb')
 const { GutenprintUsbPrinter } = require('./gutenprint-usb')
 const { PdlUsbPrinter } = require('./pdl-usb')
 const { rootShell } = require('./rootcmd')
@@ -34,7 +41,7 @@ function listUsbPrinters() {
   const found = new Set()
   let entries = []
   try { entries = fs.readdirSync(SYSFS) } catch { return [] }
-  for (const e of entries) {
+  for (const e of entries.sort()) {
     if (!e.includes(':')) continue // interfaces are "<dev>:<cfg>.<if>"
     if (read(path.join(SYSFS, e, 'bInterfaceClass')) !== '07') continue
     const dev = e.split(':')[0]
@@ -57,96 +64,146 @@ function deviceId(binDir, device) {
   })
 }
 
+const OFFLINE = { present: false, firmware_loaded: false, ready: false }
+
 class AutoPrinter {
-  constructor({ binDir, firmwarePath, log = () => {} }) {
+  constructor({ binDir, firmwarePath, log = () => {}, bwDevice, colourDevice }) {
     this.binDir = binDir
     this.firmwarePath = firmwarePath
     this.log = log
-    this.impl = null
-    this.kind = null // 'zjs-usb' | 'gutenprint-usb' | 'pdl-usb:pxl' | 'pdl-usb:ps'
-    this.device = null
+    this.bwDevice = (bwDevice || process.env.PRINTER_BW || '').toLowerCase() || null
+    this.colourDevice = (colourDevice || process.env.PRINTER_COLOUR || '').toLowerCase() || null
+    this.printers = [] // [{ device, kind, model, colour, impl }]
     this.lastDetect = 0
+    this.lastSummary = ''
     this._lastStatus = null
   }
 
-  get lastStatus() { return this.impl ? this.impl.lastStatus : this._lastStatus }
+  get lastStatus() { return this._lastStatus }
 
   selfCheck() {
     const f = path.join(this.binDir, 'vp-usbprint')
     if (!fs.existsSync(f)) throw new Error(`Printer helper missing: ${f}`)
   }
 
-  /** Pick a backend for the attached printer. Returns a description. */
-  async detect() {
-    this.lastDetect = Date.now()
-    for (const device of listUsbPrinters()) {
-      let kind = null
-      let make = null
-      if (ZJS_IDS.has(device)) {
-        if (!this.firmwarePath || !fs.existsSync(this.firmwarePath)) {
-          this.log(`Printer ${device} is an HP LaserJet 1020 but its firmware file is missing (${this.firmwarePath})`)
-          continue
-        }
-        kind = 'zjs-usb'
-        make = () => new ZjsUsbPrinter({ binDir: this.binDir, firmwarePath: this.firmwarePath, device })
-      } else {
-        const id = await deviceId(this.binDir, device)
-        if (!id) continue
-        const cmd = ((/CMD:([^;]*)/i.exec(id) || [])[1] || '').toUpperCase().split(',').map((s) => s.trim())
-        const model = (/MDL:([^;]*)/i.exec(id) || [])[1] || device
-        if (cmd.some((c) => c.startsWith('BJRASTER'))) {
-          kind = 'gutenprint-usb'
-          make = () => new GutenprintUsbPrinter({ binDir: this.binDir, device })
-        } else if (cmd.some((c) => c === 'PCLXL' || c === 'PCL XL' || c === 'PXL')) {
-          kind = 'pdl-usb:pxl'
-          make = () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'pxl' })
-        } else if (cmd.some((c) => c === 'POSTSCRIPT' || c.startsWith('PS'))) {
-          kind = 'pdl-usb:ps'
-          make = () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'ps' })
-        } else {
-          this.log(`Printer ${device} (${model}) speaks ${cmd.join(',') || 'nothing known'} — not supported`)
-          continue
-        }
-        if (kind !== this.kind || device !== this.device) this.log(`Printer detected: ${model} (${device}) → ${kind}`)
+  /** Identify one printer → { kind, model, colour, make } or null. */
+  async identify(device) {
+    if (ZJS_IDS.has(device)) {
+      if (!this.firmwarePath || !fs.existsSync(this.firmwarePath)) {
+        this.log(`Printer ${device} is an HP LaserJet 1020 but its firmware file is missing (${this.firmwarePath})`)
+        return null
       }
-      if (kind !== this.kind || device !== this.device) {
-        this.impl = make()
-        this.kind = kind
-        this.device = device
-      }
-      return kind
+      return { kind: 'zjs-usb', model: 'HP LaserJet 1020', colour: false,
+        make: () => new ZjsUsbPrinter({ binDir: this.binDir, firmwarePath: this.firmwarePath, device }) }
     }
-    if (this.impl) this.log('Printer no longer detected on USB')
-    this.impl = null
-    this.kind = null
-    this.device = null
+    const id = await deviceId(this.binDir, device)
+    if (!id) return null
+    const cmd = ((/CMD:([^;]*)/i.exec(id) || [])[1] || '').toUpperCase().split(',').map((s) => s.trim())
+    const model = ((/MDL:([^;]*)/i.exec(id) || [])[1] || device).trim()
+    if (cmd.some((c) => c.startsWith('BJRASTER'))) {
+      return { kind: 'gutenprint-usb', model, colour: true,
+        make: () => new GutenprintUsbPrinter({ binDir: this.binDir, device }) }
+    }
+    if (cmd.some((c) => c === 'PCLXL' || c === 'PCL XL' || c === 'PXL')) {
+      return { kind: 'pdl-usb:pxl', model, colour: false,
+        make: () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'pxl' }) }
+    }
+    if (cmd.some((c) => c === 'POSTSCRIPT' || c.startsWith('PS'))) {
+      return { kind: 'pdl-usb:ps', model, colour: false,
+        make: () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'ps' }) }
+    }
+    this.log(`Printer ${device} (${model}) speaks ${cmd.join(',') || 'nothing known'} — not supported`)
     return null
   }
 
+  /** Find every attached printer (keeps backends of printers still there). */
+  async detect() {
+    this.lastDetect = Date.now()
+    const next = []
+    for (const device of listUsbPrinters()) {
+      const known = this.printers.find((p) => p.device === device)
+      if (known) { next.push(known); continue }
+      const info = await this.identify(device)
+      if (info) next.push({ device, kind: info.kind, model: info.model, colour: info.colour, impl: info.make() })
+    }
+    this.printers = next
+    const summary = this.describe()
+    if (summary !== this.lastSummary) {
+      this.log(summary)
+      this.lastSummary = summary
+    }
+    return next
+  }
+
+  describe() {
+    if (this.printers.length === 0) return 'No printer detected on USB'
+    if (this.printers.length === 1) {
+      const p = this.printers[0]
+      return `Printer detected: ${p.model} (${p.device}) → ${p.kind}`
+    }
+    const bw = this.route('bw')
+    const colour = this.route('colour')
+    return `Printers detected: ${this.printers.map((p) => `${p.model} (${p.device}) → ${p.kind}`).join('; ')}` +
+      ` | B&W jobs → ${bw ? bw.model : 'none'}, colour jobs → ${colour ? colour.model : 'none'}`
+  }
+
+  /** The printer for a colour mode ('bw' | 'colour'), or null. */
+  route(mode) {
+    const list = this.printers
+    if (list.length === 0) return null
+    if (list.length === 1) return list[0] // single printer: everything goes to it
+    const wanted = mode === 'colour' ? this.colourDevice : this.bwDevice
+    if (wanted) {
+      const p = list.find((x) => x.device === wanted)
+      if (p) return p
+    }
+    if (mode === 'colour') return list.find((x) => x.colour) || list[0]
+    return list.find((x) => !x.colour) || list[0]
+  }
+
+  /**
+   * Printer state for the heartbeat. With one printer: exactly that
+   * printer's state (as before). With several: the B&W printer's state at
+   * the top level, plus by_mode { bw, colour } for per-mode gating.
+   */
   async probe() {
-    if (this.impl) {
-      const state = await this.impl.probe()
-      if (state.present) return state
+    const states = new Map()
+    for (const p of this.printers) states.set(p.device, await p.impl.probe())
+    const missing = this.printers.some((p) => !states.get(p.device).present)
+    if (this.printers.length === 0 || missing || Date.now() - this.lastDetect > REDETECT_MS) {
+      if (this.printers.length === 0 || missing || listUsbPrinters().length !== this.printers.length) {
+        await this.detect()
+        for (const p of this.printers) if (!states.has(p.device)) states.set(p.device, await p.impl.probe())
+      } else {
+        this.lastDetect = Date.now()
+      }
     }
-    // Not found (unplugged, switched off, swapped): look again, at most every few seconds
-    if (!this.impl || Date.now() - this.lastDetect > REDETECT_MS) await this.detect()
-    if (!this.impl) return (this._lastStatus = { present: false, firmware_loaded: false, ready: false })
-    return this.impl.probe()
+    if (this.printers.length === 0) return (this._lastStatus = { ...OFFLINE })
+
+    const stateOf = (p) => (p ? { ...(states.get(p.device) || OFFLINE), model: p.model } : { ...OFFLINE })
+    const bw = this.route('bw')
+    if (this.printers.length === 1) return (this._lastStatus = stateOf(bw))
+    const colour = this.route('colour')
+    return (this._lastStatus = { ...stateOf(bw), by_mode: { bw: stateOf(bw), colour: stateOf(colour) } })
   }
 
-  async require() {
-    if (!this.impl) await this.detect()
-    if (!this.impl) {
-      const { PrinterError } = require('./zjs-usb')
-      throw new PrinterError('PRINTER_NOT_FOUND', 'Printer not connected or powered off')
+  /** The backend that prints this job (by its colour mode). */
+  async forJob(job) {
+    const mode = job && job.color_mode === 'colour' ? 'colour' : 'bw'
+    let p = this.route(mode)
+    if (!p || !(await p.impl.probe()).present) {
+      await this.detect()
+      p = this.route(mode)
     }
-    return this.impl
+    if (!p) throw new PrinterError('PRINTER_NOT_FOUND', `No ${mode === 'colour' ? 'colour ' : ''}printer connected or powered on`)
+    return p.impl
   }
 
-  async ensureFirmware(log) { return (await this.require()).ensureFirmware(log) }
-  async render(pdfPath, job, outPath) { return (await this.require()).render(pdfPath, job, outPath) }
-  async sendCopy(file, sentBefore) { return (await this.require()).sendCopy(file, sentBefore) }
-  async waitForPrint(sheets, log, job) { return (await this.require()).waitForPrint(sheets, log, job) }
+  // Single-printer style calls (kept for callers that don't use forJob)
+  async ensureFirmware(log) { return (await this.forJob(null)).ensureFirmware(log) }
+  async render(pdfPath, job, outPath) { return (await this.forJob(job)).render(pdfPath, job, outPath) }
+  async sendCopy(file, sentBefore) { return (await this.forJob(null)).sendCopy(file, sentBefore) }
+  async waitForPrint(sheets, log, job) { return (await this.forJob(job)).waitForPrint(sheets, log, job) }
 }
 
 module.exports = { AutoPrinter, listUsbPrinters }

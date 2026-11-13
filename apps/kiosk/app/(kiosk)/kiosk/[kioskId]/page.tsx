@@ -7,7 +7,7 @@ import { useKioskRealtime } from '@/hooks/use-kiosk-realtime'
 import { useKioskConfig } from '@/hooks/use-kiosk-config'
 import { getEnabledModes, type KioskMode } from '@vaultprint/lib/kiosk-config'
 
-const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || 'https://vaultprint-mobile.vercel.app'
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || 'https://mobile.vaultprint.in'
 
 export default function KioskQRPage() {
   const params = useParams<{ kioskId: string }>()

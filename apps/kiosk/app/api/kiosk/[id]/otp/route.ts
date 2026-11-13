@@ -43,6 +43,20 @@ interface CandidateJob {
   otp_expires_at: string | null
   otp_attempts: number
   status: string
+  color_mode: string | null
+}
+
+type PrinterState = Record<string, unknown> & {
+  by_mode?: Record<string, { ready?: boolean; paper_empty?: boolean } | undefined>
+}
+
+/** Reason a mode's printer can't print now (two-printer kiosks), or null. */
+function modeProblem(printerState: PrinterState | undefined, colorMode: string | null): string | null {
+  const byMode = printerState?.by_mode
+  if (!byMode) return null
+  const s = byMode[colorMode === 'colour' ? 'colour' : 'bw']
+  if (!s || s.ready !== false) return null
+  return s.paper_empty === true ? 'paper_out' : 'printer_not_ready'
 }
 
 async function audit(
@@ -138,13 +152,20 @@ export async function POST(
 
   // Printer-reported state (USB agents): out of paper, firmware missing,
   // unplugged → keep the code unused rather than release a job that fails
-  const printerState = (kiosk?.settings as { printer?: Record<string, unknown> } | null)?.printer
-  if (
-    printerState &&
-    typeof printerState.checked_at === 'string' &&
-    Date.now() - new Date(printerState.checked_at).getTime() < AGENT_ONLINE_WINDOW_MS &&
-    printerState.ready === false
-  ) {
+  const reported = (kiosk?.settings as { printer?: PrinterState } | null)?.printer
+  const printerState =
+    reported &&
+    typeof reported.checked_at === 'string' &&
+    Date.now() - new Date(reported.checked_at).getTime() < AGENT_ONLINE_WINDOW_MS
+      ? reported
+      : undefined
+  // One printer: refuse now if it can't print. Separate B&W / colour
+  // printers: refuse now only if both are down — otherwise the matched
+  // job's own printer is checked below.
+  const allDown = printerState?.by_mode
+    ? Object.values(printerState.by_mode).every((m) => m?.ready === false)
+    : printerState?.ready === false
+  if (printerState && allDown) {
     return NextResponse.json(
       {
         valid: false,
@@ -161,7 +182,7 @@ export async function POST(
   if (session_id) {
     const { data: job, error: jobError } = await supabase
       .from('print_jobs')
-      .select('id, otp_hash, otp_expires_at, otp_attempts, status')
+      .select('id, otp_hash, otp_expires_at, otp_attempts, status, color_mode')
       .eq('session_id', session_id)
       .eq('kiosk_id', kioskId)
       .single()
@@ -181,7 +202,7 @@ export async function POST(
   } else {
     const { data } = await supabase
       .from('print_jobs')
-      .select('id, otp_hash, otp_expires_at, otp_attempts, status')
+      .select('id, otp_hash, otp_expires_at, otp_attempts, status, color_mode')
       .eq('kiosk_id', kioskId)
       .eq('payment_mode', 'razorpay')
       .eq('status', 'paid')
@@ -201,6 +222,16 @@ export async function POST(
     lastReason = result.reason
 
     if (result.valid) {
+      // Two-printer kiosk: this job's printer (B&W or colour) must be ready.
+      // The code stays unused, so the customer can retry once it's fixed.
+      const problem = modeProblem(printerState, job.color_mode)
+      if (problem) {
+        return NextResponse.json(
+          { valid: false, attempts_remaining: KIOSK_WRONG_ATTEMPT_LIMIT - wrongSoFar, reason: problem },
+          { status: 503 }
+        )
+      }
+
       const released = await releaseJob(supabase, kioskId, job.id)
       if (!released) {
         return NextResponse.json(
