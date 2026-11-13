@@ -123,17 +123,18 @@ static void fill_defaults(stp_vars_t *v)
 int main(int argc, char **argv)
 {
 	const char *driver = "bjc-G2000-series", *mode = NULL, *size = "A4";
-	const char *media = "Plain", *quality = "Standard";
+	const char *media = "Plain", *quality = "Standard", *resolution = NULL;
 	int opt;
-	while ((opt = getopt(argc, argv, "d:m:s:t:q:")) != -1) {
+	while ((opt = getopt(argc, argv, "d:m:s:t:q:r:")) != -1) {
 		switch (opt) {
 		case 'd': driver = optarg; break;
 		case 'm': mode = optarg; break;
 		case 's': size = optarg; break;
 		case 't': media = optarg; break;
 		case 'q': quality = optarg; break;
+		case 'r': resolution = optarg; break; /* e.g. 300x300dpi: ~4x less work than 600 */
 		default:
-			fprintf(stderr, "usage: %s [-d driver] [-m BW|Color] [-s A4] [-t Plain] [-q Standard] < pages.pnm > job.prn\n", argv[0]);
+			fprintf(stderr, "usage: %s [-d driver] [-m BW|Color] [-s A4] [-t Plain] [-q Standard] [-r 300x300dpi] < pages.pnm > job.prn\n", argv[0]);
 			return 64;
 		}
 	}
@@ -156,6 +157,7 @@ int main(int argc, char **argv)
 	stp_set_string_parameter(v, "PageSize", size);
 	stp_set_string_parameter(v, "MediaType", media);
 	stp_set_string_parameter(v, "Quality", quality);
+	if (resolution) stp_set_string_parameter(v, "Resolution", resolution);
 	stp_set_string_parameter(v, "PrintingMode", mode ? mode : (pg.ch == 1 ? "BW" : "Color"));
 	stp_set_string_parameter(v, "InputImageType", pg.ch == 1 ? "Whitescale" : "RGB");
 	stp_set_string_parameter(v, "ChannelBitDepth", "8");

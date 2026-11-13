@@ -6,8 +6,8 @@
 //
 //   HP LaserJet 1020 (03f0:2b17, ZjStream)  → zjs-usb        (needs firmware file)
 //   CMD contains BJRaster (Canon inkjets)    → gutenprint-usb (colour)
-//   CMD contains PCLXL                        → pdl-usb, PCL XL
-//   CMD contains POSTSCRIPT / PS              → pdl-usb, PostScript
+//   CMD contains PCL / PCLXL / PostScript     → pdl-usb (B&W as PCL raster
+//                                               when possible — see pdl-usb.js)
 //
 // ONE printer (the usual kiosk): every job goes to it — B&W and colour.
 //
@@ -104,13 +104,13 @@ class AutoPrinter {
       return { kind: 'gutenprint-usb', model, colour: true,
         make: () => new GutenprintUsbPrinter({ binDir: this.binDir, device }) }
     }
-    if (cmd.some((c) => c === 'PCLXL' || c === 'PCL XL' || c === 'PXL')) {
-      return { kind: 'pdl-usb:pxl', model, colour: false,
-        make: () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'pxl' }) }
-    }
-    if (cmd.some((c) => c === 'POSTSCRIPT' || c.startsWith('PS'))) {
-      return { kind: 'pdl-usb:ps', model, colour: false,
-        make: () => new PdlUsbPrinter({ binDir: this.binDir, device, language: 'ps' }) }
+    const languages = []
+    if (cmd.some((c) => c === 'PCL' || c === 'PCL5' || c === 'PCL5E' || c === 'PCL5C')) languages.push('pcl')
+    if (cmd.some((c) => c === 'PCLXL' || c === 'PCL XL' || c === 'PXL')) languages.push('pxl')
+    if (cmd.some((c) => c === 'POSTSCRIPT' || c.startsWith('PS'))) languages.push('ps')
+    if (languages.length) {
+      return { kind: `pdl-usb:${languages.join('+')}`, model, colour: false,
+        make: () => new PdlUsbPrinter({ binDir: this.binDir, device, languages }) }
     }
     this.log(`Printer ${device} (${model}) speaks ${cmd.join(',') || 'nothing known'} — not supported`)
     return null

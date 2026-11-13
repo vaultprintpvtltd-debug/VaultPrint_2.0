@@ -141,6 +141,11 @@ class GutenprintUsbPrinter {
       let gsArgs
       try { gsArgs = this.gsArgs(pdfPath, job) } catch (err) { return reject(err) }
       const gpArgs = ['-d', this.driver, '-m', job.color_mode === 'colour' ? 'Color' : 'BW', '-s', 'A4', '-t', 'Plain']
+      // Colour at 300x300 dpi: ~4x less dithering and ~5x less data than
+      // 600 dpi (a colour photo: 35 s → ~10 s on the RK3568), fine on an
+      // inkjet. B&W stays at the driver's 600 dpi for crisp text.
+      const colourRes = process.env.GUTENPRINT_COLOUR_RES ?? '300x300dpi'
+      if (job.color_mode === 'colour' && colourRes) gpArgs.push('-r', colourRes)
 
       const gs = spawn(this.gs, gsArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
       const gp = spawn(path.join(this.binDir, 'vp-gutenprint'), gpArgs, { stdio: ['pipe', 'pipe', 'pipe'] })

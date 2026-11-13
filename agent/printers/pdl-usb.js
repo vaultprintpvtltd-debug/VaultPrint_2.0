@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Page-description-language printers over USB — PCL XL or PostScript.
+// Page-description-language printers over USB — PCL, PCL XL or PostScript.
 //
 // Most office lasers (e.g. the CWC 4055 series, IEEE-1284
 // "CMD:ACL,PJL,PL,PCL,PCLXL,PS3,PDF") render pages themselves, so the box
@@ -53,12 +53,12 @@ class PdlUsbPrinter {
    * @param {object} o
    * @param {string} o.binDir   directory holding vp-usbprint
    * @param {string} o.device   USB VID:PID
-   * @param {'pxl'|'ps'} o.language  what to send (PCL XL preferred)
+   * @param {string[]} o.languages what the printer speaks: any of 'pcl', 'pxl', 'ps'
    */
-  constructor({ binDir, device, language = 'pxl', gs = 'gs' }) {
+  constructor({ binDir, device, languages = ['pxl'], language, gs = 'gs' }) {
     this.binDir = binDir
     this.device = device
-    this.language = language
+    this.languages = language ? [language] : languages
     this.gs = gs
     this.shell = rootShell()
     this.lastStatus = null
@@ -105,14 +105,24 @@ class PdlUsbPrinter {
   render(pdfPath, job, outPath) {
     return new Promise((resolve, reject) => {
       const colour = job.color_mode === 'colour'
-      const device = this.language === 'ps' ? 'ps2write' : colour ? 'pxlcolor' : 'pxlmono'
+      // B&W: PCL raster (ljet4) whenever the printer speaks PCL. The page is
+      // drawn on the box at 600 dpi and compressed, so its size is bounded
+      // (a phone photo: 1.8 MB) — PCL XL/PostScript pass photos through at
+      // full camera resolution (159 MB for one page: the printer stalls).
+      // Colour (colour lasers only): PCL XL colour.
+      const has = (l) => this.languages.includes(l)
+      const device =
+        colour && has('pxl') ? 'pxlcolor'
+          : has('pcl') ? (job.duplex ? 'ljet4d' : 'ljet4')
+            : has('pxl') ? 'pxlmono'
+              : 'ps2write'
       // Not -q: Ghostscript then prints "Page N" per page, which we count
       const args = [
         '-dBATCH', '-dSAFER', '-dNOPAUSE',
         `-sDEVICE=${device}`, `-r${RES}`,
         '-sPAPERSIZE=a4', '-dFIXEDMEDIA', '-dPDFFitPage',
       ]
-      if (job.duplex) args.push('-dDuplex=true', '-dTumble=false')
+      if (job.duplex && device !== 'ljet4d') args.push('-dDuplex=true', '-dTumble=false')
       if (job.pages_to_print && job.pages_to_print !== 'all') {
         if (!/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(job.pages_to_print)) {
           return reject(new PrinterError('INVALID_PAGE_RANGE', `Invalid page range "${job.pages_to_print}"`))

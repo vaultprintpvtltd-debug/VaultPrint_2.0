@@ -44,7 +44,7 @@ const KIOSK_API_BASE_URL = process.env.KIOSK_API_BASE_URL
 const PRINTER_NAME = process.env.PRINTER_NAME || ''
 
 const HEARTBEAT_INTERVAL_MS = 30 * 1000 // 30 seconds
-const POLL_INTERVAL_MS = 3000 // 3 seconds
+const POLL_INTERVAL_MS = 2000 // 2 seconds (code entered → job picked up)
 const KIOSK_LOCK_INTERVAL_MS = 10 * 1000 // 10 seconds
 const STAFF_PORT = 4100
 const STAFF_PIN_SHA256 = (process.env.STAFF_PIN_SHA256 || '').toLowerCase()
